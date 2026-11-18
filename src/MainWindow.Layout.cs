@@ -714,6 +714,8 @@ namespace DofuxyaManager
                 UpdateStatus();
             });
             cycle.HorizontalAlignment = HorizontalAlignment.Center;
+            // La case garde 8 px a droite pour un libelle (absent ici) : on compense pour la centrer.
+            cycle.Margin = new Thickness(8, 0, 0, 0);
             Ui.SetTip(cycle, "Inclure dans le cycle suivante / précédente.");
             Grid.SetColumn(cycle, 5);
             grid.Children.Add(cycle);
