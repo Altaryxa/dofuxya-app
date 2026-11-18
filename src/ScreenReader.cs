@@ -72,16 +72,20 @@ namespace DofuxyaManager
             if (Native.IsIconic(hWnd))
             {
                 reading.Note = "fenêtre réduite";
-                return reading;
             }
-            using (Bitmap image = Capture(hWnd))
+            else
             {
-                if (image == null)
+                using (Bitmap image = Capture(hWnd))
                 {
-                    reading.Note = "capture impossible (image noire)";
-                    return reading;
+                    if (image == null) reading.Note = "capture impossible (image noire)";
+                    else ReadImage(reading, image, name, log);
                 }
-                ReadImage(reading, image, name, log);
+            }
+            if (log != null)
+            {
+                if (reading.Note.Length > 0 && reading.Level == 0 && reading.Success == 0) log.AppendLine("=== " + name);
+                log.AppendLine("--> " + reading.Summary() + (reading.Note.Length > 0 ? " [" + reading.Note + "]" : ""));
+                log.AppendLine();
             }
             return reading;
         }
@@ -279,6 +283,7 @@ namespace DofuxyaManager
                     reading.Omega = int.Parse(word.Text);
                 }
             }
+            if (reading.Level == 0 && reading.Omega == 0) reading.Omega = ZoomOmega(words, image);
             if (reading.Omega > 0) reading.Level = 200;
 
             // Chat : lignes qui citent le perso (ou « Vous ») avec succès, niveau ou oméga.
@@ -290,6 +295,36 @@ namespace DofuxyaManager
                     || lower.Contains("omega");
                 if (aboutMe && topic && lower.Contains("[")) reading.Events.Add(line.Substring(12).Trim());
             }
+        }
+
+        // L'icone omega est lue « n » ; la pastille doree a sa droite porte le nombre. On relit cette
+        // zone agrandie trois fois quand la premiere lecture ne l'a pas donne.
+        private static int ZoomOmega(List<Word> words, Bitmap image)
+        {
+            foreach (Word icon in words)
+            {
+                if (icon.Text != "n" && icon.Text != "∩" && icon.Text != "Ω") continue;
+                Rectangle zone = Rectangle.Intersect(new Rectangle((int)icon.Right + 2, (int)icon.Y - 8, 90, (int)icon.H + 16),
+                    new Rectangle(0, 0, image.Width, image.Height));
+                if (zone.Width < 20 || GoldShare(image, zone) < 0.25) continue;
+                using (Bitmap zoom = new Bitmap(zone.Width * 3, zone.Height * 3, PixelFormat.Format32bppArgb))
+                {
+                    using (Graphics graphics = Graphics.FromImage(zoom))
+                    {
+                        graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                        graphics.DrawImage(image, new Rectangle(0, 0, zoom.Width, zoom.Height), zone, GraphicsUnit.Pixel);
+                    }
+                    List<Word> found;
+                    List<string> ignored;
+                    Recognize(zoom, out found, out ignored);
+                    foreach (Word word in found)
+                    {
+                        string digits = Regex.Replace(word.Text, @"\D", "");
+                        if (digits.Length >= 1 && digits.Length <= 4) return int.Parse(digits);
+                    }
+                }
+            }
+            return 0;
         }
 
         // Panneau des succes : le total, juste sous le titre « Succès », si « Personnage » est actif.
@@ -321,7 +356,7 @@ namespace DofuxyaManager
             {
                 StringBuilder text = new StringBuilder();
                 foreach (Word word in group) text.Append(word.Text).Append(' ');
-                Match match = Regex.Match(text.ToString().Trim(), @"^(\d{1,3}(?:\s\d{3})*)\D{0,3}$");
+                Match match = Regex.Match(text.ToString().Trim(), @"^(\d{1,3}(?:\s\d{3})*)\D{1,3}$");
                 if (!match.Success) continue;
                 double distance = group[0].Y - title.Y;
                 if (distance >= bestDistance) continue;
@@ -329,7 +364,25 @@ namespace DofuxyaManager
                 bestValue = int.Parse(Regex.Replace(match.Groups[1].Value, @"\s", ""));
                 best = group[0];
             }
-            if (best == null) return null;
+            if (best == null)
+            {
+                // Secours : la carte « Obtenir N points de Succès » montre « 14751/16000 ».
+                foreach (Word word in words)
+                {
+                    Match progress = Regex.Match(word.Text, @"^(\d{1,6})/(\d{3,6})$");
+                    if (!progress.Success) continue;
+                    int done = int.Parse(progress.Groups[1].Value);
+                    if (done >= int.Parse(progress.Groups[2].Value)) continue;
+                    foreach (Word other in words)
+                    {
+                        if (other.Text != "points" || other.Y >= word.Y || other.Y < word.Y - 90) continue;
+                        if (Math.Abs(other.X - word.X) > 300) continue;
+                        best = word;
+                        bestValue = done;
+                    }
+                }
+                if (best == null) return null;
+            }
 
             reading.Success = bestValue;
             Word person = null;
@@ -395,9 +448,14 @@ namespace DofuxyaManager
         // Part de pixels dores autour d'un mot (pastille omega).
         private static double GoldShare(Bitmap image, Word word)
         {
+            return GoldShare(image, new Rectangle((int)word.X - 6, (int)word.Y - 4, (int)word.W + 12, (int)word.H + 8));
+        }
+
+        private static double GoldShare(Bitmap image, Rectangle zone)
+        {
             int gold = 0, total = 0;
-            int left = Math.Max(0, (int)word.X - 6), right = Math.Min(image.Width - 1, (int)word.Right + 6);
-            int top = Math.Max(0, (int)word.Y - 4), bottom = Math.Min(image.Height - 1, (int)(word.Y + word.H) + 4);
+            int left = Math.Max(0, zone.Left), right = Math.Min(image.Width - 1, zone.Right);
+            int top = Math.Max(0, zone.Top), bottom = Math.Min(image.Height - 1, zone.Bottom);
             for (int x = left; x <= right; x += 2)
             {
                 for (int y = top; y <= bottom; y += 2)
