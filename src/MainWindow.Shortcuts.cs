@@ -339,7 +339,7 @@ namespace DofuxyaManager
             {
                 try
                 {
-                    Clipboard.SetText(string.Join(";", commands.ToArray()));
+                    Clipboard.SetText(string.Join(" ; ", commands.ToArray()));
                     copied = true;
                 }
                 catch (Exception)
