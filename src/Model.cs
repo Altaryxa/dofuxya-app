@@ -116,6 +116,7 @@ namespace DofuxyaManager
         public Hotkey Direct = new Hotkey();
         public int ManualRank;            // rang fixe a la main (0 = ordre d'initiative)
         public Reading LastReading;       // dernier releve de l'ecran (prototype), null si aucun
+        public readonly List<string> Unlocked = new List<string>(); // succes vus debloques dans le chat (session)
 
         public string Key
         {

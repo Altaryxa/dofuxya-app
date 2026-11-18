@@ -251,7 +251,15 @@ namespace DofuxyaManager
                 }
                 report.AppendLine(System.IO.Path.GetFileName(args[i]) + " : " + reading.Summary()
                     + (reading.Note.Length > 0 ? " [" + reading.Note + "]" : ""));
-                foreach (string line in reading.Events) report.AppendLine("  chat : " + line);
+                foreach (string line in reading.ChatLines)
+                {
+                    string achievement = UnlockedAchievement(line);
+                    int value;
+                    bool omega;
+                    if (achievement != null) report.AppendLine("  succès débloqué : " + achievement);
+                    else if (LevelUpOf(line, "Osmalie", out value, out omega))
+                        report.AppendLine("  " + (omega ? "oméga " : "niveau ") + value + " (Osmalie)");
+                }
             }
             System.IO.File.WriteAllText(args[1], report.ToString(), Encoding.UTF8);
         }
@@ -475,6 +483,33 @@ namespace DofuxyaManager
                 Match chat = ChatLine.Match(line.Substring(12));
                 if (chat.Success) reading.ChatLines.Add(chat.Groups[1].Value.Trim());
             }
+        }
+
+        // Messages du chat sur la progression du perso de la fenetre :
+        // « Succès déverrouillé : [Bord de la forêt maléfique] » (ceux des autres joueurs s'ecrivent
+        // « X a déverrouillé le succès [Y] » et ne correspondent pas) ;
+        // « Osmalie vient de passer au niveau 92. » (« niveau Oméga N » suppose, pas encore vu).
+        private static readonly Regex OwnAchievement = new Regex(
+            @"succ\S{0,2}s\s+d\S{0,2}verrouill\S{0,2}\s*:?\s*\[([^\]]+)", RegexOptions.IgnoreCase);
+        private static readonly Regex LevelUp = new Regex(
+            @"(\S+)\s+vient\s+de\s+passer\s+au\s+niveau\s+(om\S{0,2}ga\s+)?(\d{1,4})", RegexOptions.IgnoreCase);
+
+        // Nom du succes debloque par le perso de la fenetre, ou null.
+        public static string UnlockedAchievement(string line)
+        {
+            Match match = OwnAchievement.Match(line);
+            return match.Success ? match.Groups[1].Value.Trim() : null;
+        }
+
+        // Passage de niveau du perso nomme : renvoie true et la valeur (omega ou niveau).
+        public static bool LevelUpOf(string line, string name, out int value, out bool omega)
+        {
+            value = 0;
+            omega = false;
+            Match match = LevelUp.Match(line);
+            if (!match.Success || ChatKey(match.Groups[1].Value) != ChatKey(name)) return false;
+            omega = match.Groups[2].Success;
+            return int.TryParse(match.Groups[3].Value, out value) && value > 0;
         }
 
         // Ligne du chat qui parle d'un succes, d'un niveau ou de l'omega.

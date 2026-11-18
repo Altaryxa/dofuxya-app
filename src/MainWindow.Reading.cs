@@ -148,9 +148,28 @@ namespace DofuxyaManager
             }
             if (fresh.Count == 0) return false;
             StringBuilder text = new StringBuilder();
+            string message = null;
             foreach (string line in fresh)
             {
-                text.AppendLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [" + window.Name + "] " + line);
+                // Le perso de la fenetre debloque un succes ou passe un niveau : on le retient.
+                string kind = "chat";
+                string achievement = ScreenReader.UnlockedAchievement(line);
+                int value;
+                bool omega;
+                if (achievement != null)
+                {
+                    kind = "succès";
+                    if (!window.Unlocked.Contains(achievement)) window.Unlocked.Add(achievement);
+                    message = window.Name + " : succès « " + achievement + " » débloqué.";
+                }
+                else if (ScreenReader.LevelUpOf(line, window.Name, out value, out omega))
+                {
+                    kind = omega ? "oméga" : "niveau";
+                    if (omega && value > result.Omega) { result.Omega = value; result.Level = 200; }
+                    if (!omega && value <= 200 && value > result.Level) result.Level = value;
+                    message = window.Name + " : " + (omega ? "oméga " : "niveau ") + value + ".";
+                }
+                text.AppendLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [" + window.Name + "] [" + kind + "] " + line);
                 result.Events.Add(line);
             }
             try
@@ -160,7 +179,7 @@ namespace DofuxyaManager
             catch (Exception)
             {
             }
-            lastMessage = window.Name + " : " + fresh[fresh.Count - 1];
+            lastMessage = message ?? window.Name + " : " + fresh[fresh.Count - 1];
             return true;
         }
 
