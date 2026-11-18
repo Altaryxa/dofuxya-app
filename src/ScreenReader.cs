@@ -22,6 +22,7 @@ namespace DofuxyaManager
         public bool SuccessFromAccount;
         public DateTime At;
         public string Note = "";
+        public string Diagnostic = "";   // details de lecture, pour le journal seulement
         public readonly List<string> Events = new List<string>();
 
         public string Summary()
@@ -85,6 +86,7 @@ namespace DofuxyaManager
             {
                 if (reading.Note.Length > 0 && reading.Level == 0 && reading.Success == 0) log.AppendLine("=== " + name);
                 log.AppendLine("--> " + reading.Summary() + (reading.Note.Length > 0 ? " [" + reading.Note + "]" : ""));
+                if (reading.Diagnostic.Length > 0) log.AppendLine("    " + reading.Diagnostic);
                 log.AppendLine();
             }
             return reading;
@@ -283,7 +285,7 @@ namespace DofuxyaManager
                     reading.Omega = int.Parse(word.Text);
                 }
             }
-            if (reading.Level == 0 && reading.Omega == 0) reading.Omega = ZoomOmega(words, image);
+            if (reading.Level == 0 && reading.Omega == 0) reading.Omega = ZoomOmega(reading, words, image);
             if (reading.Omega > 0) reading.Level = 200;
 
             // Chat : lignes qui citent le perso (ou « Vous ») avec succès, niveau ou oméga.
@@ -299,14 +301,17 @@ namespace DofuxyaManager
 
         // L'icone omega est lue « n » ; la pastille doree a sa droite porte le nombre. On relit cette
         // zone agrandie trois fois quand la premiere lecture ne l'a pas donne.
-        private static int ZoomOmega(List<Word> words, Bitmap image)
+        private static int ZoomOmega(Reading reading, List<Word> words, Bitmap image)
         {
             foreach (Word icon in words)
             {
                 if (icon.Text != "n" && icon.Text != "∩" && icon.Text != "Ω") continue;
-                Rectangle zone = Rectangle.Intersect(new Rectangle((int)icon.Right + 2, (int)icon.Y - 8, 90, (int)icon.H + 16),
+                Rectangle zone = Rectangle.Intersect(new Rectangle((int)icon.Right + 2, (int)icon.Y - 8, 110, (int)icon.H + 16),
                     new Rectangle(0, 0, image.Width, image.Height));
-                if (zone.Width < 20 || GoldShare(image, zone) < 0.25) continue;
+                if (zone.Width < 20) continue;
+                Color average = AverageColor(image, zone);
+                reading.Diagnostic += string.Format("zoom à droite de « {0} » ({1},{2}) : doré {3:0} %, couleur moyenne {4},{5},{6}",
+                    icon.Text, (int)icon.X, (int)icon.Y, GoldShare(image, zone) * 100, average.R, average.G, average.B);
                 using (Bitmap zoom = new Bitmap(zone.Width * 3, zone.Height * 3, PixelFormat.Format32bppArgb))
                 {
                     using (Graphics graphics = Graphics.FromImage(zoom))
@@ -317,6 +322,7 @@ namespace DofuxyaManager
                     List<Word> found;
                     List<string> ignored;
                     Recognize(zoom, out found, out ignored);
+                    reading.Diagnostic += ", lu « " + string.Join(" ", ignored.ToArray()) + " » ; ";
                     foreach (Word word in found)
                     {
                         string digits = Regex.Replace(word.Text, @"\D", "");
@@ -466,6 +472,25 @@ namespace DofuxyaManager
                 }
             }
             return total == 0 ? 0 : (double)gold / total;
+        }
+
+        private static Color AverageColor(Bitmap image, Rectangle zone)
+        {
+            long r = 0, g = 0, b = 0;
+            int count = 0;
+            for (int x = zone.Left; x < zone.Right; x += 2)
+            {
+                for (int y = zone.Top; y < zone.Bottom; y += 2)
+                {
+                    Color c = image.GetPixel(x, y);
+                    r += c.R;
+                    g += c.G;
+                    b += c.B;
+                    count++;
+                }
+            }
+            if (count == 0) return Color.Black;
+            return Color.FromArgb((int)(r / count), (int)(g / count), (int)(b / count));
         }
 
         // Texte vert (onglet actif) : moyenne des pixels clairs du mot.
