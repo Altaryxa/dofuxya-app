@@ -413,7 +413,8 @@ namespace DofuxyaManager
                 string normalized = Normalize(word.Text);
                 foreach (string cls in Classes)
                 {
-                    if (normalized == cls) return true;
+                    // Le nom peut etre coupe par le panneau (« FORGELAN »).
+                    if (normalized == cls || (normalized.Length >= 4 && cls.StartsWith(normalized))) return true;
                 }
             }
             return false;
