@@ -18,6 +18,11 @@ namespace DofuxyaManager
         [STAThread]
         private static void Main(string[] args)
         {
+            if (args.Length >= 3 && args[0] == "--essai-lecture")
+            {
+                ScreenReader.TestFiles(args);
+                return;
+            }
             bool created;
             Mutex mutex = new Mutex(true, "DofuxyaManager.InstanceUnique", out created);
             if (!created)

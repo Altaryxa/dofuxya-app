@@ -275,6 +275,15 @@ namespace DofuxyaManager
             manualButton.Margin = new Thickness(8, 0, 0, 0);
             DockPanel.SetDock(manualButton, Dock.Right);
             toolbar.Children.Add(manualButton);
+            if (settings.ScreenReading)
+            {
+                readButton = Ui.MakeButton("Relever", false, ReadScreens);
+                Ui.SetTip(readButton, "Prototype : lit niveau, oméga et total de succès à l'écran de chaque fenêtre "
+                    + "Dofus (panneau des succès ouvert sur « Personnage » pour le total). Rien n'est envoyé.");
+                readButton.Margin = new Thickness(8, 0, 0, 0);
+                DockPanel.SetDock(readButton, Dock.Right);
+                toolbar.Children.Add(readButton);
+            }
             countText.FontSize = 14;
             countText.FontWeight = FontWeights.SemiBold;
             countText.Foreground = Ui.Paint(Ui.ColMuted);
@@ -680,6 +689,16 @@ namespace DofuxyaManager
             string detail = window.ClassName.Length > 0 ? window.ClassName + " · " + window.Game : window.Game;
             if (named && window.Key == settings.LeaderKey) detail += " · principal";
             names.Children.Add(Ui.Text(detail, 12, false, Ui.ColMuted));
+            if (window.LastReading != null)
+            {
+                TextBlock read = Ui.Text(window.LastReading.Summary(), 12, true, Ui.ColAccent);
+                read.Margin = new Thickness(0, 2, 0, 0);
+                List<string> tip = new List<string>();
+                if (window.LastReading.Note.Length > 0) tip.Add("Remarque : " + window.LastReading.Note);
+                foreach (string line in window.LastReading.Events) tip.Add(line);
+                if (tip.Count > 0) Ui.SetTip(read, string.Join("\n", tip.ToArray()));
+                names.Children.Add(read);
+            }
             Grid.SetColumn(names, 2);
             grid.Children.Add(names);
 
