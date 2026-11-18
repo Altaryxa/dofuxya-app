@@ -15,6 +15,7 @@ namespace DofuxyaManager
         public const uint MOD_NOREPEAT = 0x4000;
         public const uint VK_F3 = 0x72;
         public const uint GW_OWNER = 4;
+        public const int SW_MAXIMIZE = 3;
         public const int SW_RESTORE = 9;
         public const uint MOD_ALT = 0x0001;
         public const uint MOD_CONTROL = 0x0002;

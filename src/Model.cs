@@ -117,20 +117,60 @@ namespace DofuxyaManager
         {
             get { return Game + "\t" + Name; }
         }
+
+        // Faux tant que la fenetre n'affiche pas de personnage (connexion, choix du personnage).
+        public bool IsNamed
+        {
+            get { return Name.Length > 0; }
+        }
+
+        public bool IsRetro
+        {
+            get { return Game == Scanner.Retro; }
+        }
     }
 
     internal static class Scanner
     {
+        public const string Retro = "Dofus Retro";
+        public const string Dofus3 = "Dofus 3";
+
+        private static readonly uint ownPid = (uint)Process.GetCurrentProcess().Id;
         // Nom de processus par numero, garde d'un passage a l'autre : le relire a chaque fois est couteux.
         private static readonly Dictionary<uint, string> processNames = new Dictionary<uint, string>();
+
+        private static string ProcessName(uint pid)
+        {
+            string name;
+            if (processNames.TryGetValue(pid, out name)) return name;
+            name = "";
+            try
+            {
+                name = Process.GetProcessById((int)pid).ProcessName;
+            }
+            catch (Exception)
+            {
+            }
+            processNames[pid] = name;
+            return name;
+        }
+
+        private static bool ContainsDofus(string text)
+        {
+            return text.IndexOf("dofus", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool ContainsRetro(string text)
+        {
+            return text.IndexOf("retro", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
 
         // Liste les fenetres principales visibles. Sans "broad", seules celles dont le
         // processus contient "dofus" sont gardees ; avec, celles dont le titre le contient aussi.
         public static List<RawWindow> Enumerate(bool broad)
         {
             List<RawWindow> result = new List<RawWindow>();
-            int ownPid = Process.GetCurrentProcess().Id;
-            List<uint> seen = new List<uint>();
+            HashSet<uint> seen = new HashSet<uint>();
 
             Native.EnumWindowsProc callback = delegate(IntPtr hWnd, IntPtr lParam)
             {
@@ -141,29 +181,17 @@ namespace DofuxyaManager
 
                 uint pid;
                 Native.GetWindowThreadProcessId(hWnd, out pid);
-                if (pid == 0 || pid == (uint)ownPid) return true;
+                if (pid == 0 || pid == ownPid) return true;
 
-                if (!seen.Contains(pid)) seen.Add(pid);
-                string processName;
-                if (!processNames.TryGetValue(pid, out processName))
-                {
-                    processName = "";
-                    try
-                    {
-                        processName = Process.GetProcessById((int)pid).ProcessName;
-                    }
-                    catch (Exception)
-                    {
-                    }
-                    processNames[pid] = processName;
-                }
+                seen.Add(pid);
+                string processName = ProcessName(pid);
 
                 StringBuilder title = new StringBuilder(length + 2);
                 Native.GetWindowText(hWnd, title, title.Capacity);
                 string titleText = title.ToString();
 
-                bool isDofusProcess = processName.ToLowerInvariant().Contains("dofus");
-                bool titleMatches = titleText.ToLowerInvariant().Contains("dofus");
+                bool isDofusProcess = ContainsDofus(processName);
+                bool titleMatches = ContainsDofus(titleText);
                 if (!isDofusProcess && !(broad && titleMatches)) return true;
 
                 StringBuilder className = new StringBuilder(256);
@@ -197,7 +225,7 @@ namespace DofuxyaManager
         // "Nom - Dofus Retro vX.Y.Z" (Retro), ou "Nom" seul si la fenetre a deja ete renommee.
         public static void Parse(GameWindow window, string title, string processName)
         {
-            string game = processName.ToLowerInvariant().Contains("retro") ? "Dofus Retro" : "Dofus 3";
+            string game = ContainsRetro(processName) ? Retro : Dofus3;
             string name = "";
             string className = "";
 
@@ -216,7 +244,7 @@ namespace DofuxyaManager
                 string second = parts[1].Trim();
                 if (StartsWithDofus(second))
                 {
-                    if (second.ToLowerInvariant().Contains("retro")) game = "Dofus Retro";
+                    if (ContainsRetro(second)) game = Retro;
                 }
                 else if (parts.Length >= 3)
                 {
@@ -234,17 +262,9 @@ namespace DofuxyaManager
         public static bool IsDofusProcessWindow(IntPtr hWnd)
         {
             if (hWnd == IntPtr.Zero) return false;
-            try
-            {
-                uint pid;
-                Native.GetWindowThreadProcessId(hWnd, out pid);
-                if (pid == 0 || pid == (uint)Process.GetCurrentProcess().Id) return false;
-                return Process.GetProcessById((int)pid).ProcessName.ToLowerInvariant().Contains("dofus");
-            }
-            catch (Exception)
-            {
-                return false;
-            }
+            uint pid;
+            Native.GetWindowThreadProcessId(hWnd, out pid);
+            return pid != 0 && pid != ownPid && ContainsDofus(ProcessName(pid));
         }
 
         private static bool StartsWithDofus(string text)
@@ -322,7 +342,7 @@ namespace DofuxyaManager
         public void Load(GameWindow window)
         {
             Entry entry;
-            if (window.Name.Length > 0 && entries.TryGetValue(window.Key, out entry))
+            if (window.IsNamed && entries.TryGetValue(window.Key, out entry))
             {
                 window.Initiative = entry.Initiative;
                 window.InCycle = entry.InCycle;
@@ -344,7 +364,7 @@ namespace DofuxyaManager
         // On la retient donc par personnage, et on la relit quand le titre ne la donne plus.
         public void SyncClass(GameWindow window)
         {
-            if (window.Name.Length == 0) return;
+            if (!window.IsNamed) return;
             Entry entry;
             bool known = entries.TryGetValue(window.Key, out entry);
             if (window.ClassName.Length == 0)
@@ -359,7 +379,7 @@ namespace DofuxyaManager
 
         public void Save(GameWindow window)
         {
-            if (window.Name.Length == 0) return;
+            if (!window.IsNamed) return;
             Entry entry = new Entry();
             entry.Initiative = window.Initiative;
             entry.InCycle = window.InCycle;
@@ -402,7 +422,6 @@ namespace DofuxyaManager
         public bool MiniVertical;
         public bool AutoFollow;
         public bool AutoMaximizeRetro;
-        public bool AutoUpdate = true;
         public Hotkey Leader = new Hotkey();
         public string LeaderKey = "";
         public double MiniX = double.NaN;
@@ -437,7 +456,6 @@ namespace DofuxyaManager
                         else if (key == "mini_verticale") MiniVertical = value == "1";
                         else if (key == "suivi_tour") AutoFollow = value == "1";
                         else if (key == "agrandir_retro") AutoMaximizeRetro = value == "1";
-                        else if (key == "maj_auto") AutoUpdate = value != "0";
                         else if (key == "principal_touche") Leader = Hotkey.Parse(value);
                         else if (key == "principal") LeaderKey = line.Substring(separator + 1);
                         else if (key == "mini_x") MiniX = ParseDouble(value);
@@ -482,7 +500,6 @@ namespace DofuxyaManager
                 }
                 lines.Add("suivi_tour=" + (AutoFollow ? "1" : "0"));
                 lines.Add("agrandir_retro=" + (AutoMaximizeRetro ? "1" : "0"));
-                lines.Add("maj_auto=" + (AutoUpdate ? "1" : "0"));
                 lines.Add("principal_touche=" + Leader.Serialize());
                 lines.Add("principal=" + LeaderKey);
                 if (!double.IsNaN(MiniX) && !double.IsNaN(MiniY))

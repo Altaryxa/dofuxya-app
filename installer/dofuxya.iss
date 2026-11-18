@@ -1,5 +1,5 @@
 ﻿; Installateur de Dofuxya (Inno Setup 7 ou 6).
-; Ne pas compiler a la main : publier.bat le fait avec le bon numero de version.
+; Compile par publier.bat (publication automatique sur GitHub), avec le numero de version.
 
 #ifndef AppVer
   #define AppVer "0.0.0"
@@ -35,13 +35,15 @@ Name: "desktopicon"; Description: "Créer un raccourci sur le Bureau"; Flags: un
 
 [Files]
 Source: "..\Dofuxya.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\LISEZMOI.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [InstallDelete]
 ; Anciens noms (versions installees avant le renommage en Dofuxya).
 Type: files; Name: "{app}\DofuxyaManager.exe"
 Type: files; Name: "{userprograms}\Dofuxya Manager.lnk"
 Type: files; Name: "{userdesktop}\Dofuxya Manager.lnk"
+; Fichiers des versions 1.2.3 et avant : notice, dossier d'icones (vide) cree a cote de l'exe.
+Type: files; Name: "{app}\LISEZMOI.txt"
+Type: dirifempty; Name: "{app}\icones"
 
 [Icons]
 Name: "{userprograms}\Dofuxya"; Filename: "{app}\Dofuxya.exe"

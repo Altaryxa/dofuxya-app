@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -30,10 +31,16 @@ namespace DofuxyaManager
         private static ControlTemplate checkTemplate;
         private static ControlTemplate flatTemplate;
 
+        // Pinceaux figes, crees une fois par couleur : l'interface les redemande a chaque mise a jour.
+        private static readonly Dictionary<string, SolidColorBrush> brushes = new Dictionary<string, SolidColorBrush>();
+
         public static SolidColorBrush Paint(string hex)
         {
-            SolidColorBrush brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+            SolidColorBrush brush;
+            if (brushes.TryGetValue(hex, out brush)) return brush;
+            brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
             brush.Freeze();
+            brushes[hex] = brush;
             return brush;
         }
 

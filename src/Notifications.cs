@@ -1,17 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Windows.Threading;
-#if NOTIF
 using Windows.UI.Notifications;
 using Windows.UI.Notifications.Management;
-#endif
 
 namespace DofuxyaManager
 {
     // Suivi du tour par les notifications Windows : Dofus Retro envoie une notification quand un
     // personnage doit agir. L'outil lit la liste des notifications de Windows (pas le jeu) et
-    // signale chaque nouvelle notification. Compile seulement si le poste fournit les
-    // composants Windows necessaires (voir build.bat).
+    // signale chaque nouvelle notification.
     internal class TurnWatcher
     {
         // Recoit le nom de l'application emettrice et les textes de la notification.
@@ -19,7 +16,6 @@ namespace DofuxyaManager
         public Action StateChanged;
         public string State = "arrêté";
 
-#if NOTIF
         private readonly DispatcherTimer timer = new DispatcherTimer();
         private UserNotificationListener listener;
         private Windows.Foundation.IAsyncOperation<UserNotificationListenerAccessStatus> accessOperation;
@@ -27,11 +23,6 @@ namespace DofuxyaManager
         private HashSet<uint> seen = new HashSet<uint>();
         private bool primed;
         private bool running;
-
-        public static bool Available
-        {
-            get { return true; }
-        }
 
         public TurnWatcher()
         {
@@ -149,23 +140,6 @@ namespace DofuxyaManager
                 SetState("erreur de lecture des notifications : " + ex.Message);
             }
         }
-#else
-        public static bool Available
-        {
-            get { return false; }
-        }
-
-        public void Start()
-        {
-            SetState("non disponible : cette version a été compilée sans la lecture des notifications "
-                + "(voir build-suivi.log à côté de build.bat)");
-        }
-
-        public void Stop()
-        {
-            SetState("arrêté");
-        }
-#endif
 
         private void SetState(string state)
         {

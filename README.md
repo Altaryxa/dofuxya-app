@@ -6,21 +6,43 @@ fenêtres renommées avec le nom et l'icône de classe du perso, mini-barre flot
 L'application agit seulement sur les fenêtres : elle n'envoie aucune touche ni aucun clic au jeu et ne lit pas sa
 mémoire. Elle ne collecte aucune donnée personnelle.
 
-**Télécharger : https://dofuxya.com/tool** (Windows 10 ou 11, sans droits d'administrateur).
+**Télécharger : https://dofuxya.com/tool** (Windows 10 ou 11, sans droits d'administrateur). Les mises à jour
+s'installent toutes seules au lancement.
 
-## Compiler
+## Fonctions
 
-Rien à installer : `build.bat` utilise le compilateur C# fourni avec Windows (.NET Framework 4) et produit
-`Dofuxya.exe`. Le détail des fonctions et des réglages est dans [LISEZMOI.txt](LISEZMOI.txt).
+- Détection des fenêtres Dofus et Dofus Retro ouvertes, mise à jour instantanée.
+- Ordre d'initiative, ou ordre manuel en faisant glisser le numéro d'une carte.
+- Fenêtres renommées avec le nom du perso et l'icône de sa classe.
+- Raccourcis clavier ou souris : fenêtre suivante, précédente, perso principal, et un raccourci par perso.
+  Ils marchent dans Dofus seulement, ou partout.
+- « Grouper l'équipe » : amène le perso principal devant et copie les commandes `/invite` des autres persos,
+  à coller dans le chat du jeu (Ctrl + V, Entrée).
+- Barre des tâches rangée dans l'ordre du tour.
+- Mini-barre flottante, horizontale ou verticale.
+- Dofus Retro : suivi du tour et agrandissement automatique des fenêtres.
+- La croix masque la fenêtre : l'outil reste actif dans la zone de notification. Lancement avec Windows en option.
 
-## Publier une version
+## Suivi du tour sur Retro
 
-1. Pousser un tag `vX.Y.Z` (par exemple `git tag v1.2.1` puis `git push origin v1.2.1`).
-2. L'action « Publier une version » ([.github/workflows/release.yml](.github/workflows/release.yml)) compile
-   l'application, fabrique l'installateur `Dofuxya-Setup-X.Y.Z.exe` avec Inno Setup et crée la version sur GitHub.
-3. Sous 15 minutes environ, https://dofuxya.com/tool propose la nouvelle version, et les applications installées se
-   mettent à jour à leur prochain lancement (fichier https://dofuxya.com/tool/version.txt, empreinte SHA-256
-   vérifiée avant installation).
+L'outil lit les notifications de Windows. À régler une fois :
+
+1. dans le jeu, activer les notifications en arrière-plan ;
+2. dans Windows, laisser les notifications du jeu activées ;
+3. dans Paramètres › Confidentialité et sécurité › Notifications, autoriser les applications à accéder aux
+   notifications.
+
+## Données
+
+Réglages et initiatives sont enregistrés sur le PC, dans `%AppData%\Dofuxya` (avec `erreurs.txt` en cas de
+plantage). Un problème ? Options › À propos copie un diagnostic à joindre à ton signalement.
+
+## Développement
+
+`build.bat` compile `Dofuxya.exe` avec le compilateur C# fourni avec Windows (.NET Framework 4) : rien à installer.
+Chaque tag `vX.Y.Z` poussé sur GitHub publie une version
+([.github/workflows/release.yml](.github/workflows/release.yml)) : la page de téléchargement et la mise à jour
+automatique suivent d'elles-mêmes.
 
 Outil de fan, non affilié à Ankama. Dofus est une marque d'Ankama ; les icônes de classe sont la propriété
 d'Ankama Games.

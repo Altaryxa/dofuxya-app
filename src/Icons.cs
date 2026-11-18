@@ -2,142 +2,69 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Reflection;
 using System.Text;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace DofuxyaManager
 {
-    // Icones de classe : un fichier image par classe dans le dossier "icones" a cote de l'executable.
-    // Le nom du fichier (sans extension) sert de nom de classe : pandawa.png, iop.ico...
+    // Icones de classe, integrees a l'executable (assets\icones, liste dans assets\icones.rsp).
+    // Elles sont lues en memoire a la demande : rien n'est ecrit sur le disque.
     internal class IconLibrary
     {
+        private const string Prefix = "icones.";
         private const int BigSize = 48;
         private const int SmallSize = 24;
 
-        private readonly Dictionary<string, string> paths = new Dictionary<string, string>();
+        // Les fichiers integres ont des noms sans accent : on leur rend le nom de la classe.
+        private static readonly Dictionary<string, string> Accented = new Dictionary<string, string>
+        {
+            { "Feca", "Féca" },
+            { "Cra", "Crâ" },
+            { "Xelor", "Xélor" },
+        };
+
+        private readonly Assembly assembly = Assembly.GetExecutingAssembly();
+        private readonly Dictionary<string, string> resources = new Dictionary<string, string>();
         private readonly Dictionary<string, IntPtr> bigHandles = new Dictionary<string, IntPtr>();
         private readonly Dictionary<string, IntPtr> smallHandles = new Dictionary<string, IntPtr>();
         private readonly Dictionary<string, ImageSource> previews = new Dictionary<string, ImageSource>();
-        private readonly List<object> keepAlive = new List<object>();
+        // Les icones posees sur les fenetres doivent rester en vie tant que l'outil tourne.
+        private readonly List<System.Drawing.Icon> keepAlive = new List<System.Drawing.Icon>();
 
         public readonly List<string> Keys = new List<string>();
-        public readonly string Folder;
-        private readonly string builtInFolder;
 
         public IconLibrary()
         {
-            Folder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icones");
-            builtInFolder = Path.Combine(AppPaths.DataFolder, "icones-integrees");
-            try
+            foreach (string resource in assembly.GetManifestResourceNames())
             {
-                Directory.CreateDirectory(Folder);
-            }
-            catch (Exception)
-            {
-            }
-            ExtractBuiltIn();
-            Reload();
-        }
-
-        // Relit le dossier. Renvoie true si la liste des fichiers a change.
-        // Copie les icones integrees a l'executable dans un dossier de travail, une fois.
-        private void ExtractBuiltIn()
-        {
-            try
-            {
-                Directory.CreateDirectory(builtInFolder);
-                System.Reflection.Assembly assembly = System.Reflection.Assembly.GetExecutingAssembly();
-                foreach (string resource in assembly.GetManifestResourceNames())
-                {
-                    if (!resource.StartsWith("icones.", StringComparison.Ordinal)) continue;
-                    string fileName = DisplayName(resource.Substring("icones.".Length));
-                    string target = Path.Combine(builtInFolder, fileName);
-                    using (Stream stream = assembly.GetManifestResourceStream(resource))
-                    {
-                        if (stream == null) continue;
-                        if (File.Exists(target) && new FileInfo(target).Length == stream.Length) continue;
-                        using (FileStream output = File.Create(target))
-                        {
-                            stream.CopyTo(output);
-                        }
-                    }
-                }
-            }
-            catch (Exception)
-            {
-            }
-        }
-
-        // Les fichiers integres ont des noms sans accent : on leur rend le nom de la classe.
-        private static string DisplayName(string fileName)
-        {
-            if (fileName.StartsWith("Feca.")) return "Féca." + fileName.Substring(5);
-            if (fileName.StartsWith("Cra.")) return "Crâ." + fileName.Substring(4);
-            if (fileName.StartsWith("Xelor.")) return "Xélor." + fileName.Substring(6);
-            return fileName;
-        }
-
-        private static void Collect(string folder, Dictionary<string, string> found, List<string> taken)
-        {
-            try
-            {
-                if (!Directory.Exists(folder)) return;
-                foreach (string file in Directory.GetFiles(folder))
-                {
-                    string extension = Path.GetExtension(file).ToLowerInvariant();
-                    if (extension != ".png" && extension != ".ico" && extension != ".jpg"
-                        && extension != ".jpeg" && extension != ".bmp" && extension != ".gif") continue;
-                    string key = Path.GetFileNameWithoutExtension(file);
-                    string normalized = Normalize(key);
-                    if (taken.Contains(normalized)) continue;
-                    taken.Add(normalized);
-                    found[key] = file;
-                }
-            }
-            catch (Exception)
-            {
-            }
-        }
-
-        public bool Reload()
-        {
-            // Le dossier "icones" de l'utilisateur passe avant les icones integrees.
-            Dictionary<string, string> found = new Dictionary<string, string>();
-            List<string> taken = new List<string>();
-            Collect(Folder, found, taken);
-            Collect(builtInFolder, found, taken);
-
-            bool same = found.Count == paths.Count;
-            if (same)
-            {
-                foreach (KeyValuePair<string, string> pair in found)
-                {
-                    string existing;
-                    if (!paths.TryGetValue(pair.Key, out existing) || existing != pair.Value)
-                    {
-                        same = false;
-                        break;
-                    }
-                }
-            }
-            if (same) return false;
-
-            paths.Clear();
-            Keys.Clear();
-            bigHandles.Clear();
-            smallHandles.Clear();
-            previews.Clear();
-            foreach (KeyValuePair<string, string> pair in found)
-            {
-                paths[pair.Key] = pair.Value;
-                Keys.Add(pair.Key);
+                if (!resource.StartsWith(Prefix, StringComparison.Ordinal)
+                    || !resource.EndsWith(".ico", StringComparison.OrdinalIgnoreCase)) continue;
+                string key = Path.GetFileNameWithoutExtension(resource.Substring(Prefix.Length));
+                string accented;
+                if (Accented.TryGetValue(key, out accented)) key = accented;
+                resources[key] = resource;
+                Keys.Add(key);
             }
             Keys.Sort(StringComparer.OrdinalIgnoreCase);
-            return true;
+            RemoveOldCopies();
         }
 
-        // Trouve l'icone correspondant a un nom de classe ("Féca" -> fichier "feca.png").
+        // Jusqu'a la version 1.2.3, les icones etaient copiees dans %AppData%\Dofuxya\icones-integrees.
+        private static void RemoveOldCopies()
+        {
+            try
+            {
+                string old = Path.Combine(AppPaths.DataFolder, "icones-integrees");
+                if (Directory.Exists(old)) Directory.Delete(old, true);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        // Trouve l'icone correspondant a un nom de classe ("Féca", "feca" ou "Feca" -> "Féca").
         public string Match(string className)
         {
             string wanted = Normalize(className);
@@ -159,7 +86,7 @@ namespace DofuxyaManager
 
         public bool Has(string key)
         {
-            return key != null && paths.ContainsKey(key);
+            return key != null && resources.ContainsKey(key);
         }
 
         public IntPtr GetBig(string key)
@@ -172,19 +99,18 @@ namespace DofuxyaManager
             return GetHandle(key, SmallSize, smallHandles);
         }
 
+        // Image pour l'interface : la plus grande taille du .ico, la plus nette.
         public ImageSource GetPreview(string key)
         {
             if (!Has(key)) return null;
-            ImageSource cached;
-            if (previews.TryGetValue(key, out cached)) return cached;
-            ImageSource image = null;
+            ImageSource image;
+            if (previews.TryGetValue(key, out image)) return image;
+            image = null;
             try
             {
-                string file = paths[key];
-                if (Path.GetExtension(file).ToLowerInvariant() == ".ico")
+                using (Stream stream = assembly.GetManifestResourceStream(resources[key]))
                 {
-                    // Un .ico contient plusieurs tailles : on prend la plus grande, la plus nette.
-                    IconBitmapDecoder decoder = new IconBitmapDecoder(new Uri(file),
+                    IconBitmapDecoder decoder = new IconBitmapDecoder(stream,
                         BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
                     BitmapFrame best = null;
                     foreach (BitmapFrame frame in decoder.Frames)
@@ -202,16 +128,6 @@ namespace DofuxyaManager
                         image = best;
                     }
                 }
-                else
-                {
-                    BitmapImage bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.UriSource = new Uri(file);
-                    bitmap.EndInit();
-                    bitmap.Freeze();
-                    image = bitmap;
-                }
             }
             catch (Exception)
             {
@@ -228,35 +144,15 @@ namespace DofuxyaManager
             handle = IntPtr.Zero;
             try
             {
-                string file = paths[key];
-                if (Path.GetExtension(file).ToLowerInvariant() == ".ico")
+                using (Stream stream = assembly.GetManifestResourceStream(resources[key]))
                 {
-                    System.Drawing.Icon icon = new System.Drawing.Icon(file, size, size);
+                    System.Drawing.Icon icon = new System.Drawing.Icon(stream, size, size);
                     keepAlive.Add(icon);
                     handle = icon.Handle;
-                }
-                else
-                {
-                    using (System.Drawing.Image source = System.Drawing.Image.FromFile(file))
-                    {
-                        System.Drawing.Bitmap scaled = new System.Drawing.Bitmap(size, size,
-                            System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-                        using (System.Drawing.Graphics graphics = System.Drawing.Graphics.FromImage(scaled))
-                        {
-                            graphics.InterpolationMode =
-                                System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                            graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
-                            graphics.Clear(System.Drawing.Color.Transparent);
-                            graphics.DrawImage(source, 0, 0, size, size);
-                        }
-                        keepAlive.Add(scaled);
-                        handle = scaled.GetHicon();
-                    }
                 }
             }
             catch (Exception)
             {
-                handle = IntPtr.Zero;
             }
             cache[key] = handle;
             return handle;
