@@ -12,7 +12,9 @@ AppVersion={#AppVer}
 AppVerName=Dofuxya {#AppVer}
 AppPublisher=Dofuxya
 DefaultDirName={localappdata}\Programs\Dofuxya
-DisableDirPage=yes
+; Le joueur choisit le dossier d'installation ; les mises a jour silencieuses reprennent ce dossier.
+DisableDirPage=no
+UsePreviousAppDir=yes
 DisableProgramGroupPage=yes
 DisableReadyPage=yes
 PrivilegesRequired=lowest
@@ -77,6 +79,39 @@ begin
   if (not WizardSilent) and CheckForMutexes('DofuxyaManager.InstanceUnique') then
   begin
     MsgBox('Dofuxya est ouvert. Quitte-le (clic droit sur son icône près de l''horloge, puis Quitter), puis relance l''installation.', mbError, MB_OK);
+    Result := False;
+  end;
+end;
+
+// Installation sans droits d'administrateur : le dossier choisi doit etre accessible en ecriture
+// (pas C:\Program Files, par exemple). On le verifie avant d'aller plus loin.
+function CanWriteTo(Dir: String): Boolean;
+var
+  Probe, Parent: String;
+begin
+  while not DirExists(Dir) do
+  begin
+    Parent := ExtractFileDir(Dir);
+    if (Parent = '') or (Parent = Dir) then
+    begin
+      Result := False;
+      exit;
+    end;
+    Dir := Parent;
+  end;
+  Probe := AddBackslash(Dir) + 'dofuxya-ecriture.tmp';
+  Result := SaveStringToFile(Probe, '', False);
+  if Result then
+    DeleteFile(Probe);
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if (CurPageID = wpSelectDir) and not CanWriteTo(WizardDirValue) then
+  begin
+    MsgBox('Dofuxya s''installe sans droits d''administrateur : ce dossier est protégé par Windows.' + #13#10 +
+      'Choisis un autre dossier, par exemple dans ton dossier personnel.', mbError, MB_OK);
     Result := False;
   end;
 end;
