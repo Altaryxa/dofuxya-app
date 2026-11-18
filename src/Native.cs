@@ -82,6 +82,53 @@ namespace DofuxyaManager
         [DllImport("user32.dll")]
         public static extern bool IsZoomed(IntPtr hWnd);
 
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MONITORINFO
+        {
+            public int Size;
+            public RECT Monitor;
+            public RECT Work;
+            public uint Flags;
+        }
+
+        [DllImport("user32.dll")]
+        public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromWindow(IntPtr hWnd, uint flags);
+
+        [DllImport("user32.dll")]
+        private static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO info);
+
+        private const int GWL_STYLE = -16;
+        private const int WS_CAPTION = 0x00C00000;
+
+        // Vrai si la fenetre est en plein ecran : sans barre de titre et couvrant tout son ecran.
+        // Une fenetre simplement agrandie garde sa barre de titre et ne compte pas.
+        public static bool IsFullscreen(IntPtr hWnd)
+        {
+            if (IsIconic(hWnd)) return false;
+            if ((GetWindowLong(hWnd, GWL_STYLE) & WS_CAPTION) == WS_CAPTION) return false;
+            RECT window;
+            if (!GetWindowRect(hWnd, out window)) return false;
+            IntPtr monitor = MonitorFromWindow(hWnd, 2);
+            if (monitor == IntPtr.Zero) return false;
+            MONITORINFO info = new MONITORINFO();
+            info.Size = Marshal.SizeOf(typeof(MONITORINFO));
+            if (!GetMonitorInfo(monitor, ref info)) return false;
+            return window.Left <= info.Monitor.Left && window.Top <= info.Monitor.Top
+                && window.Right >= info.Monitor.Right && window.Bottom >= info.Monitor.Bottom;
+        }
+
         [DllImport("user32.dll")]
         public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
 
@@ -185,15 +232,17 @@ namespace DofuxyaManager
     }
 
     [ComImport]
-    [Guid("56FDF342-FD6D-11d0-958A-006097C9A090")]
+    [Guid("602D4995-B13A-429b-A66E-1935E44F4317")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    internal interface ITaskbarList
+    internal interface ITaskbarList2
     {
         void HrInit();
         void AddTab(IntPtr hWnd);
         void DeleteTab(IntPtr hWnd);
         void ActivateTab(IntPtr hWnd);
         void SetActiveAlt(IntPtr hWnd);
+        // Signale a la barre des taches qu'une fenetre est en plein ecran : elle passe alors dessous.
+        void MarkFullscreenWindow(IntPtr hWnd, [MarshalAs(UnmanagedType.Bool)] bool fullscreen);
     }
 
     [ComImport]

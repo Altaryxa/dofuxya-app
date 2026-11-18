@@ -165,6 +165,10 @@ namespace DofuxyaManager
         private IntPtr lastActive = IntPtr.Zero;
         private string lastMessage = "";
         private string lastTaskbarOrder = "";
+        // Gardee tout le temps de l'outil : les fenetres signalees en plein ecran le restent tant qu'elle vit.
+        private ITaskbarList2 taskbarList;
+        private readonly HashSet<IntPtr> fullscreenMarked = new HashSet<IntPtr>();
+        private readonly DispatcherTimer fullscreenTimer = new DispatcherTimer();
 
         private Button captureButton;
         private Action<Hotkey> captureApply;
@@ -253,6 +257,9 @@ namespace DofuxyaManager
             };
             timer.Tick += delegate { RefreshAll(false); };
             timer.Start();
+            fullscreenTimer.Interval = TimeSpan.FromSeconds(1);
+            fullscreenTimer.Tick += delegate { UpdateFullscreenMarks(); };
+            fullscreenTimer.Start();
             RefreshAll(true);
         }
 
@@ -1165,7 +1172,7 @@ namespace DofuxyaManager
                     store.SyncClass(window);
                     windows.Add(window);
                     if (settings.AutoMaximizeRetro && window.Game == "Dofus Retro"
-                        && !Native.IsZoomed(window.Handle))
+                        && !Native.IsZoomed(window.Handle) && !Native.IsFullscreen(window.Handle))
                     {
                         Native.ShowWindow(window.Handle, 3);
                     }
@@ -1492,7 +1499,7 @@ namespace DofuxyaManager
         {
             foreach (GameWindow window in windows)
             {
-                if (window.Game == "Dofus Retro" && !Native.IsZoomed(window.Handle))
+                if (window.Game == "Dofus Retro" && !Native.IsZoomed(window.Handle) && !Native.IsFullscreen(window.Handle))
                 {
                     Native.ShowWindow(window.Handle, 3);
                 }
@@ -1922,8 +1929,7 @@ namespace DofuxyaManager
             if (ordered.Count == 0) return;
             try
             {
-                ITaskbarList taskbar = (ITaskbarList)new TaskbarListClass();
-                taskbar.HrInit();
+                ITaskbarList2 taskbar = Taskbar();
                 foreach (GameWindow window in ordered)
                 {
                     taskbar.DeleteTab(window.Handle);
@@ -1932,12 +1938,53 @@ namespace DofuxyaManager
                 foreach (GameWindow window in ordered)
                 {
                     taskbar.AddTab(window.Handle);
+                    // Un bouton remis dans la barre perd son reglage « plein ecran » : on le refait.
+                    fullscreenMarked.Remove(window.Handle);
                     Thread.Sleep(40);
                 }
             }
             catch (Exception ex)
             {
                 lastMessage = "Rangement de la barre des tâches impossible : " + ex.Message;
+            }
+            UpdateFullscreenMarks();
+        }
+
+        private ITaskbarList2 Taskbar()
+        {
+            if (taskbarList == null)
+            {
+                ITaskbarList2 created = (ITaskbarList2)new TaskbarListClass();
+                created.HrInit();
+                taskbarList = created;
+            }
+            return taskbarList;
+        }
+
+        // Une fenetre dont le bouton a ete retire puis remis dans la barre des taches n'est plus
+        // reconnue par Windows comme un jeu en plein ecran : la barre reste alors visible par-dessus.
+        // On signale donc nous-memes les fenetres de jeu en plein ecran (toutes, car celles rangees
+        // avant de decocher l'option gardent le probleme jusqu'a leur fermeture).
+        private void UpdateFullscreenMarks()
+        {
+            try
+            {
+                HashSet<IntPtr> alive = new HashSet<IntPtr>();
+                foreach (GameWindow window in windows)
+                {
+                    IntPtr handle = window.Handle;
+                    alive.Add(handle);
+                    bool fullscreen = Native.IsFullscreen(handle);
+                    if (fullscreen == fullscreenMarked.Contains(handle)) continue;
+                    Taskbar().MarkFullscreenWindow(handle, fullscreen);
+                    if (fullscreen) fullscreenMarked.Add(handle);
+                    else fullscreenMarked.Remove(handle);
+                }
+                fullscreenMarked.RemoveWhere(delegate(IntPtr handle) { return !alive.Contains(handle); });
+            }
+            catch (Exception ex)
+            {
+                lastMessage = "Réglage du plein écran impossible : " + ex.Message;
             }
         }
 
