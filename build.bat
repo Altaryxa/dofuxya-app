@@ -25,7 +25,7 @@ echo Version %VER%
 
 set WM=%WINDIR%\System32\WinMetadata
 set "BASE=/nologo /codepage:65001 /target:winexe /out:Dofuxya.exe /win32icon:assets\app.ico /resource:assets\logo-256.png,DofuxyaManager.logo.png @assets\icones.rsp"
-set "REFS=/reference:"%FW%\WPF\PresentationFramework.dll" /reference:"%FW%\WPF\PresentationCore.dll" /reference:"%FW%\WPF\WindowsBase.dll" /reference:System.Xaml.dll /reference:System.Drawing.dll /reference:System.Windows.Forms.dll"
+set "REFS=/reference:"%FW%\WPF\PresentationFramework.dll" /reference:"%FW%\WPF\PresentationCore.dll" /reference:"%FW%\WPF\WindowsBase.dll" /reference:System.Xaml.dll /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.Security.dll /reference:System.Web.Extensions.dll"
 rem Composants Windows : lecture des notifications (suivi du tour sur Retro), reconnaissance de texte.
 set "WINRT=/reference:"%WM%\Windows.UI.winmd" /reference:"%WM%\Windows.Foundation.winmd" /reference:"%WM%\Windows.ApplicationModel.winmd" /reference:"%WM%\Windows.Globalization.winmd" /reference:"%WM%\Windows.Graphics.winmd" /reference:"%WM%\Windows.Media.winmd" /reference:"%WM%\Windows.Security.winmd" /reference:"%WM%\Windows.Storage.winmd" /reference:"%FW%\System.Runtime.dll" /reference:"%FW%\System.Runtime.WindowsRuntime.dll" /reference:"%FW%\System.Runtime.InteropServices.WindowsRuntime.dll""
 

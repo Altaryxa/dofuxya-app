@@ -428,6 +428,8 @@ namespace DofuxyaManager
         public bool AutoMaximizeRetro;
         // Prototype de lecture d'ecran : active seulement par « lecture_ecran=1 » dans reglages.txt.
         public bool ScreenReading;
+        // Adresse du site pour l'envoi des releves (« site=http://localhost:3000 » pour les essais).
+        public string SiteUrl = "https://dofuxya.com";
         public Hotkey Leader = new Hotkey();
         // Touche a maintenir pendant le clic qui ouvre la roue des persos (aucune = roue desactivee).
         public Hotkey WheelKey = new Hotkey();
@@ -466,6 +468,7 @@ namespace DofuxyaManager
                         else if (key == "suivi_tour") AutoFollow = value == "1";
                         else if (key == "agrandir_retro") AutoMaximizeRetro = value == "1";
                         else if (key == "lecture_ecran") ScreenReading = value == "1";
+                        else if (key == "site" && value.StartsWith("http")) SiteUrl = value.TrimEnd('/');
                         else if (key == "principal_touche") Leader = Hotkey.Parse(value);
                         else if (key == "roue_touche") WheelKey = Hotkey.Parse(value);
                         else if (key == "principal") LeaderKey = line.Substring(separator + 1);
@@ -512,6 +515,7 @@ namespace DofuxyaManager
                 lines.Add("suivi_tour=" + (AutoFollow ? "1" : "0"));
                 lines.Add("agrandir_retro=" + (AutoMaximizeRetro ? "1" : "0"));
                 if (ScreenReading) lines.Add("lecture_ecran=1");
+                if (SiteUrl != "https://dofuxya.com") lines.Add("site=" + SiteUrl);
                 lines.Add("principal_touche=" + Leader.Serialize());
                 lines.Add("roue_touche=" + WheelKey.Serialize());
                 lines.Add("principal=" + LeaderKey);
