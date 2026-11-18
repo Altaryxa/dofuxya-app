@@ -135,23 +135,41 @@ namespace DofuxyaManager
             ToolTipService.SetShowDuration(element, 60000);
         }
 
-        // Petit « i » qui signale une infobulle.
-        public static Border InfoBadge(string text)
+        // Pastille « i » dessinee (point et barre arrondie) qui signale une infobulle ; verte au survol.
+        private static readonly Geometry InfoGlyph = Geometry.Parse(
+            "M 8,3.2 A 1.25,1.25 0 1 1 7.999,3.2 Z M 6.9,6.8 L 9.1,6.8 L 9.1,12.2 A 1.1,1.1 0 0 1 6.9,12.2 Z");
+
+        public static FrameworkElement InfoBadge(string text)
         {
-            TextBlock letter = Text("i", 11, true, ColMuted);
-            letter.HorizontalAlignment = HorizontalAlignment.Center;
-            letter.VerticalAlignment = VerticalAlignment.Center;
-            Border badge = new Border();
-            badge.Width = 17;
-            badge.Height = 17;
-            badge.CornerRadius = new CornerRadius(9);
-            badge.BorderBrush = Paint(ColMuted);
-            badge.BorderThickness = new Thickness(1.4);
-            badge.Background = Brushes.Transparent;
-            badge.Margin = new Thickness(8, 0, 0, 0);
+            System.Windows.Shapes.Ellipse disc = new System.Windows.Shapes.Ellipse();
+            disc.Fill = Paint(ColRowHover);
+
+            System.Windows.Shapes.Path glyph = new System.Windows.Shapes.Path();
+            glyph.Data = InfoGlyph;
+            glyph.Fill = Paint(ColText);
+            glyph.Width = 16;
+            glyph.Height = 16;
+            glyph.Stretch = Stretch.None;
+
+            Grid badge = new Grid();
+            badge.Width = 16;
+            badge.Height = 16;
+            badge.Margin = new Thickness(8, 1, 0, 0);
             badge.VerticalAlignment = VerticalAlignment.Center;
             badge.Cursor = Cursors.Help;
-            badge.Child = letter;
+            badge.SnapsToDevicePixels = true;
+            badge.Children.Add(disc);
+            badge.Children.Add(glyph);
+            badge.MouseEnter += delegate
+            {
+                disc.Fill = Paint(ColAccent);
+                glyph.Fill = Paint(ColAccentInk);
+            };
+            badge.MouseLeave += delegate
+            {
+                disc.Fill = Paint(ColRowHover);
+                glyph.Fill = Paint(ColText);
+            };
             SetTip(badge, text);
             return badge;
         }
