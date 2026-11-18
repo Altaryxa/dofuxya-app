@@ -192,20 +192,14 @@ namespace DofuxyaManager
             }
             for (int i = 0; i < lines.Count; i++)
             {
-                if (inside.Contains(i)) panelLines.Add(lines[i].Substring(12).Trim());
+                string text = lines[i].Substring(12).Trim();
+                // Une heure (« [19:13] », « [19:131 ») trahit une ligne du chat.
+                if (inside.Contains(i) && !Regex.IsMatch(text, @"\d{1,2}\s*[:.]\s*\d{2}\s*[\]1l]")) panelLines.Add(text);
             }
         }
 
         private static void FindZones(List<Word> words, List<string> lines, Rectangle bounds, List<Zone> zones)
         {
-            // Panneau des succes : autour de son titre (le « Succès » ecrit le plus grand).
-            Word title = null;
-            foreach (Word word in words)
-            {
-                if ((word.Text == "Succès" || word.Text == "Succes") && (title == null || word.H > title.H)) title = word;
-            }
-            if (title != null) Add(zones, "succes", new Rectangle((int)title.X - 580, (int)title.Y - 24, 1240, 880), bounds);
-
             // Chat : l'ensemble des lignes qui commencent par une heure.
             Rectangle chat = Rectangle.Empty;
             for (int i = 0; i < lines.Count; i++)
@@ -218,7 +212,33 @@ namespace DofuxyaManager
                     chat = chat.IsEmpty ? r : Rectangle.Union(chat, r);
                 }
             }
-            if (!chat.IsEmpty) Add(zones, "chat", new Rectangle(chat.X - 40, chat.Y - 24, chat.Width + 400, chat.Height + 48), bounds);
+            if (!chat.IsEmpty)
+            {
+                chat = new Rectangle(chat.X - 40, chat.Y - 24, chat.Width + 400, chat.Height + 48);
+                Add(zones, "chat", chat, bounds);
+            }
+
+            // Panneau des succes, a ses vrais bords : de la colonne des categories (« Compte »,
+            // « PROGRESSION GÉNÉRALE ») au bord droit, sans deborder sur le chat ni sur la fiche
+            // voisine (sinon chaque message du chat ferait relire tout le panneau).
+            Word title = null;
+            foreach (Word word in words)
+            {
+                if ((word.Text == "Succès" || word.Text == "Succes") && (title == null || word.H > title.H)) title = word;
+            }
+            if (title != null)
+            {
+                int left = (int)title.X - 580;
+                foreach (Word word in words)
+                {
+                    bool column = word.Text == "Compte" || word.Text == "PROGRESSION" || word.Text == "Rechercher...";
+                    if (column && Math.Abs(word.Y - title.Y) < 200 && word.X < title.X) left = Math.Max(left, (int)word.X - 50);
+                }
+                int bottom = (int)title.Y + 850;
+                if (!chat.IsEmpty && chat.Right > left && chat.Top > title.Y) bottom = Math.Min(bottom, chat.Top - 4);
+                int right = (int)title.X + 640;
+                Add(zones, "succes", Rectangle.FromLTRB(left, (int)title.Y - 24, right, bottom), bounds);
+            }
 
             // Notification de succes : elle ne reste que quelques secondes, sa place est retenue (ScreenWatcher).
             foreach (Word word in words)
@@ -407,18 +427,19 @@ namespace DofuxyaManager
             Rectangle area = new Rectangle(0, 0, image.Width, image.Height);
             BitmapData data = image.LockBits(area, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
             byte[] row = new byte[data.Stride];
-            List<byte> samples = new List<byte>();
+            byte[] samples = new byte[((image.Height + 3) / 4) * ((image.Width + 3) / 4)];
+            int n = 0;
             for (int y = 0; y < image.Height; y += 4)
             {
                 Marshal.Copy(new IntPtr(data.Scan0.ToInt64() + (long)y * data.Stride), row, 0, row.Length);
                 for (int x = 0; x < image.Width; x += 4)
                 {
                     int i = x * 4;
-                    samples.Add((byte)((row[i] + row[i + 1] * 2 + row[i + 2]) / 64));
+                    samples[n++] = (byte)((row[i] + row[i + 1] * 2 + row[i + 2]) / 64);
                 }
             }
             image.UnlockBits(data);
-            return samples.ToArray();
+            return samples;
         }
 
         // Vrai si deux empreintes different sur plus de 1 % des points.

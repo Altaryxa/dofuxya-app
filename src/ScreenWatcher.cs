@@ -6,7 +6,7 @@ namespace DofuxyaManager
 {
     // Lecture continue de la fenetre Dofus au premier plan (prototype, F-50), faite pour ne pas peser
     // sur le jeu :
-    // - une lecture complete toutes les 20 s (ou au changement de fenetre) repere les zones utiles :
+    // - une lecture complete toutes les 30 s (ou au changement de fenetre) repere les zones utiles :
     //   panneau des succes, chat, barre d'XP, fiche Caracteristiques ;
     // - chaque seconde, seules ces zones sont copiees depuis l'ecran et comparees a grands traits ;
     // - une zone n'est relue que si elle a change ET qu'elle est stable depuis la seconde precedente
@@ -14,7 +14,7 @@ namespace DofuxyaManager
     // Appele toujours depuis un seul fil a la fois.
     internal class ScreenWatcher
     {
-        private static readonly TimeSpan FullEvery = TimeSpan.FromSeconds(20);
+        private static readonly TimeSpan FullEvery = TimeSpan.FromSeconds(30);
 
         private class Watched
         {
