@@ -80,31 +80,12 @@ namespace DofuxyaManager
 
         // ---------- Envoi ----------
 
-        // Valeurs actuelles sur le site des persos releves (cle « name », « found », « level »…).
-        public static List<Dictionary<string, object>> Preview(string site, List<Dictionary<string, object>> readings)
+        // Enregistre les releves sur le site. Renvoie le bilan : « updated » (persos mis a jour),
+        // « achievements » (succes valides), « unknown » (noms de succes non reconnus).
+        public static Dictionary<string, object> Apply(string site, List<Dictionary<string, object>> readings)
         {
-            Dictionary<string, object> answer = Post(site, "/api/manager/preview", RequireToken(),
+            return Post(site, "/api/manager/apply", RequireToken(),
                 new Dictionary<string, object> { { "readings", readings } });
-            List<Dictionary<string, object>> characters = new List<Dictionary<string, object>>();
-            object list;
-            if (answer.TryGetValue("characters", out list) && list is System.Collections.ArrayList)
-            {
-                foreach (object item in (System.Collections.ArrayList)list)
-                {
-                    Dictionary<string, object> character = item as Dictionary<string, object>;
-                    if (character != null) characters.Add(character);
-                }
-            }
-            return characters;
-        }
-
-        // Enregistre les releves sur le site. Renvoie le nombre de persos mis a jour.
-        public static int Apply(string site, List<Dictionary<string, object>> readings)
-        {
-            Dictionary<string, object> answer = Post(site, "/api/manager/apply", RequireToken(),
-                new Dictionary<string, object> { { "readings", readings } });
-            object updated;
-            return answer.TryGetValue("updated", out updated) ? Convert.ToInt32(updated) : 0;
         }
 
         // ---------- Echanges ----------

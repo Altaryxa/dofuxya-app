@@ -282,8 +282,9 @@ namespace DofuxyaManager
                     + "Dofus (panneau des succès ouvert sur « Personnage » pour le total). Rien n'est envoyé.");
                 readButton.Margin = new Thickness(8, 0, 0, 0);
                 siteButton = Ui.MakeButton(SiteLink.IsLinked ? "Envoyer au site" : "Lier au site", false, OnSiteButton);
-                Ui.SetTip(siteButton, "Prototype : lie l'outil à ton compte du site, puis envoie les valeurs relevées "
-                    + "(niveau, oméga, succès) après les avoir affichées pour validation.");
+                Ui.SetTip(siteButton, "Prototype : lie l'outil à ton compte du site. Ensuite, les valeurs relevées "
+                    + "(niveau, oméga, succès débloqués) y partent toutes seules, au plus une fois par minute ; "
+                    + "ce bouton les envoie tout de suite.");
                 siteButton.Margin = new Thickness(8, 0, 0, 0);
                 DockPanel.SetDock(siteButton, Dock.Right);
                 toolbar.Children.Add(siteButton);

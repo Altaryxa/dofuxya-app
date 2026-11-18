@@ -49,7 +49,9 @@ namespace DofuxyaManager
         // en priorite basse pour laisser la main au jeu.
         private void AutoRead()
         {
-            if (!settings.ScreenReading || !settings.AutoReading || reading) return;
+            if (!settings.ScreenReading || !settings.AutoReading) return;
+            AutoSendTick();
+            if (reading) return;
             GameWindow window = FindWindow(Native.GetForegroundWindow());
             if (window != null && (!window.IsNamed || window.IsRetro)) window = null;
             GameWindow other = NextBackgroundWindow(window);
@@ -302,9 +304,16 @@ namespace DofuxyaManager
             });
         }
 
-        // ---------- Site ----------
+        // ---------- Site (F-50) ----------
+        // Envoi automatique, sans confirmation : ce qui a change depuis le dernier envoi (niveau, omega,
+        // total de succes, succes debloques) part au plus une fois par minute. Le bouton « Envoyer au
+        // site » envoie tout de suite.
 
-        // Le meme bouton lie l'outil au site, puis envoie les releves.
+        private const int SendEvery = 60;
+        private int sendTick;
+        private readonly Dictionary<string, string> sentValues = new Dictionary<string, string>();
+        private readonly Dictionary<string, HashSet<string>> sentUnlocked = new Dictionary<string, HashSet<string>>();
+
         private void UpdateSiteButton()
         {
             if (readButton != null) readButton.Content = "Relever";
@@ -318,7 +327,15 @@ namespace DofuxyaManager
         {
             if (siteBusy) return;
             if (!SiteLink.IsLinked) LinkSite();
-            else SendToSite();
+            else SendToSite(true);
+        }
+
+        // Appele chaque seconde par la lecture continue.
+        private void AutoSendTick()
+        {
+            if (++sendTick < SendEvery) return;
+            sendTick = 0;
+            if (SiteLink.IsLinked && !siteBusy) SendToSite(false);
         }
 
         private void LinkSite()
@@ -334,7 +351,7 @@ namespace DofuxyaManager
                 try
                 {
                     result = SiteLink.Link(site, delegate { return false; })
-                        ? "Outil lié à ton compte du site."
+                        ? "Outil lié à ton compte du site : les relevés y seront envoyés automatiquement."
                         : "Liaison abandonnée : rien n'a été autorisé dans les 10 minutes.";
                 }
                 catch (Exception ex)
@@ -351,143 +368,120 @@ namespace DofuxyaManager
             });
         }
 
-        // Releves a envoyer : seulement les valeurs lues (total de succes du perso, pas du compte).
-        private List<Dictionary<string, object>> CollectReadings()
+        private static string BaseName(string unlocked)
+        {
+            int paren = unlocked.LastIndexOf(" (");
+            return paren > 0 ? unlocked.Substring(0, paren) : unlocked;
+        }
+
+        // Releves a envoyer : seulement ce qui a change depuis le dernier envoi (tout, si « all »).
+        private List<Dictionary<string, object>> CollectReadings(bool all)
         {
             List<Dictionary<string, object>> readings = new List<Dictionary<string, object>>();
             foreach (GameWindow window in NamedWindows())
             {
-                Reading r = window.LastReading;
-                if (r == null || window.IsRetro) continue;
+                if (window.IsRetro) continue;
                 Dictionary<string, object> item = new Dictionary<string, object>();
                 item["name"] = window.Name;
-                if (r.Level > 0) item["level"] = r.Level;
-                if (r.Omega > 0) item["omega"] = r.Omega;
-                if (r.Success > 0 && !r.SuccessFromAccount) item["achievementPoints"] = r.Success;
+                Reading r = window.LastReading;
+                string sent;
+                if (r != null && (all || !sentValues.TryGetValue(window.Name, out sent) || sent != r.Values()))
+                {
+                    if (r.Level > 0) item["level"] = r.Level;
+                    if (r.Omega > 0) item["omega"] = r.Omega;
+                    if (r.Success > 0 && !r.SuccessFromAccount) item["achievementPoints"] = r.Success;
+                }
+                HashSet<string> done;
+                if (!sentUnlocked.TryGetValue(window.Name, out done)) done = new HashSet<string>();
+                List<string> fresh = new List<string>();
+                foreach (string unlocked in window.Unlocked)
+                {
+                    string name = BaseName(unlocked);
+                    if (!done.Contains(name) && fresh.Count < 50) fresh.Add(name);
+                }
+                if (fresh.Count > 0) item["achievements"] = fresh;
                 if (item.Count > 1) readings.Add(item);
             }
             return readings;
         }
 
-        private void SendToSite()
+        private void SendToSite(bool now)
         {
-            List<Dictionary<string, object>> readings = CollectReadings();
+            List<Dictionary<string, object>> readings = CollectReadings(now);
             if (readings.Count == 0)
             {
-                lastMessage = "Rien à envoyer : fais d'abord un relevé.";
-                UpdateStatus();
+                if (now)
+                {
+                    lastMessage = "Rien de nouveau à envoyer au site.";
+                    UpdateStatus();
+                }
                 return;
             }
+            // Ce qui part maintenant, pour le marquer envoye si le site l'accepte.
+            Dictionary<string, string> values = new Dictionary<string, string>();
+            foreach (GameWindow window in NamedWindows())
+            {
+                if (window.LastReading != null) values[window.Name] = window.LastReading.Values();
+            }
             siteBusy = true;
-            SetBusy(siteButton, "Envoi…");
+            if (now) SetBusy(siteButton, "Envoi…");
             string site = settings.SiteUrl;
             ThreadPool.QueueUserWorkItem(delegate
             {
-                List<Dictionary<string, object>> current = null;
+                Dictionary<string, object> answer = null;
                 string error = null;
                 try
                 {
-                    current = SiteLink.Preview(site, readings);
+                    answer = SiteLink.Apply(site, readings);
                 }
                 catch (Exception ex)
                 {
                     error = ex.Message;
                 }
-                Dispatcher.BeginInvoke(new Action(delegate { ConfirmAndApply(site, readings, current, error); }));
-            });
-        }
-
-        private void ConfirmAndApply(string site, List<Dictionary<string, object>> readings,
-            List<Dictionary<string, object>> current, string error)
-        {
-            if (error != null)
-            {
-                siteBusy = false;
-                lastMessage = "Envoi impossible : " + error;
-                UpdateSiteButton();
-                UpdateStatus();
-                return;
-            }
-            Dictionary<string, Dictionary<string, object>> byName =
-                new Dictionary<string, Dictionary<string, object>>(StringComparer.OrdinalIgnoreCase);
-            foreach (Dictionary<string, object> character in current) byName[Convert.ToString(character["name"])] = character;
-
-            List<string> changes = new List<string>();
-            List<string> missing = new List<string>();
-            List<Dictionary<string, object>> toSend = new List<Dictionary<string, object>>();
-            foreach (Dictionary<string, object> reading in readings)
-            {
-                string name = Convert.ToString(reading["name"]);
-                Dictionary<string, object> site_;
-                if (!byName.TryGetValue(name, out site_) || !Convert.ToBoolean(site_["found"]))
-                {
-                    missing.Add(name);
-                    continue;
-                }
-                List<string> parts = new List<string>();
-                Compare(parts, "niveau", site_, "level", reading);
-                Compare(parts, "oméga", site_, "omega", reading);
-                Compare(parts, "succès", site_, "achievementPoints", reading);
-                if (parts.Count == 0) continue;
-                changes.Add(name + " : " + string.Join(", ", parts.ToArray()));
-                toSend.Add(reading);
-            }
-
-            if (toSend.Count == 0)
-            {
-                siteBusy = false;
-                lastMessage = "Le site est déjà à jour."
-                    + (missing.Count > 0 ? " Introuvables sur le site : " + string.Join(", ", missing.ToArray()) + "." : "");
-                UpdateSiteButton();
-                UpdateStatus();
-                return;
-            }
-            string text = "Mettre à jour le site ?\n\n" + string.Join("\n", changes.ToArray());
-            if (missing.Count > 0) text += "\n\nIntrouvables sur le site (ignorés) : " + string.Join(", ", missing.ToArray());
-            if (MessageBox.Show(this, text, "Envoyer au site", MessageBoxButton.YesNo, MessageBoxImage.Question,
-                MessageBoxResult.Yes) != MessageBoxResult.Yes)
-            {
-                siteBusy = false;
-                lastMessage = "Envoi annulé.";
-                UpdateSiteButton();
-                UpdateStatus();
-                return;
-            }
-            ThreadPool.QueueUserWorkItem(delegate
-            {
-                string result;
-                try
-                {
-                    int updated = SiteLink.Apply(site, toSend);
-                    result = updated + " perso(s) mis à jour sur le site.";
-                }
-                catch (Exception ex)
-                {
-                    result = "Envoi impossible : " + ex.Message;
-                }
                 Dispatcher.BeginInvoke(new Action(delegate
                 {
                     siteBusy = false;
-                    lastMessage = result;
+                    if (error != null)
+                    {
+                        lastMessage = "Envoi au site impossible : " + error;
+                    }
+                    else
+                    {
+                        foreach (Dictionary<string, object> item in readings)
+                        {
+                            string name = Convert.ToString(item["name"]);
+                            string value;
+                            if (values.TryGetValue(name, out value)) sentValues[name] = value;
+                            object list;
+                            if (!item.TryGetValue("achievements", out list)) continue;
+                            HashSet<string> done;
+                            if (!sentUnlocked.TryGetValue(name, out done)) sentUnlocked[name] = done = new HashSet<string>();
+                            foreach (string achievement in (List<string>)list) done.Add(achievement);
+                        }
+                        lastMessage = SendSummary(answer);
+                    }
                     UpdateSiteButton();
                     UpdateStatus();
                 }));
             });
         }
 
-        // « niveau 199 → 200 » quand la valeur relevee differe de celle du site.
-        private static void Compare(List<string> parts, string label, Dictionary<string, object> site,
-            string key, Dictionary<string, object> reading)
+        // « Envoyé au site : 2 perso(s) mis à jour, 3 succès. Non reconnus : … »
+        private static string SendSummary(Dictionary<string, object> answer)
         {
-            object read;
-            if (!reading.TryGetValue(key, out read)) return;
-            object before;
-            site.TryGetValue(key, out before);
-            int newValue = Convert.ToInt32(read);
-            if (before != null && Convert.ToInt32(before) == newValue) return;
-            CultureInfo french = CultureInfo.GetCultureInfo("fr-FR");
-            parts.Add(label + " " + (before == null ? "—" : Convert.ToInt32(before).ToString("N0", french))
-                + " → " + newValue.ToString("N0", french));
+            object updated, achievements, unknown;
+            int persos = answer.TryGetValue("updated", out updated) ? Convert.ToInt32(updated) : 0;
+            int added = answer.TryGetValue("achievements", out achievements) ? Convert.ToInt32(achievements) : 0;
+            string text = "Envoyé au site : " + persos + " perso(s) mis à jour, " + added + " succès validé(s).";
+            System.Collections.ArrayList names = answer.TryGetValue("unknown", out unknown)
+                ? unknown as System.Collections.ArrayList : null;
+            if (names != null && names.Count > 0)
+            {
+                List<string> list = new List<string>();
+                foreach (object name in names) list.Add(Convert.ToString(name));
+                text += " Succès non reconnus : " + string.Join(", ", list.ToArray()) + ".";
+            }
+            return text;
         }
 
         private static void SetBusy(Button button, string text)
