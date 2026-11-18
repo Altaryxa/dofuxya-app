@@ -26,6 +26,8 @@ namespace DofuxyaManager
         public readonly List<string> Events = new List<string>();
         // Lignes du chat visibles (texte apres l'heure), pour reperer les nouvelles d'une lecture a l'autre.
         public readonly List<string> ChatLines = new List<string>();
+        // Succes debloques lus a l'ecran (« nom (catégorie) ») : fenetre des recompenses a recuperer.
+        public readonly List<string> Unlocked = new List<string>();
 
         // Garde les valeurs d'un releve precedent que celui-ci n'a pas lues (total de succes quand le
         // panneau est ferme, par exemple).
@@ -79,6 +81,13 @@ namespace DofuxyaManager
             "feca", "osamodas", "enutrof", "sram", "xelor", "ecaflip", "eniripsa", "iop", "cra", "sadida",
             "sacrieur", "pandawa", "roublard", "zobal", "steamer", "eliotrope", "huppermage", "ouginak",
             "forgelance",
+        };
+
+        // Categories du panneau des succes (fenetre des recompenses : « Temple Céleste … Exploration »).
+        private static readonly string[] Categories =
+        {
+            "general", "exploration", "donjons", "monstres", "quetes", "metiers", "elevage", "evenements",
+            "kolizeum", "guilde", "compagnons",
         };
 
         private static OcrEngine engine;
@@ -251,6 +260,7 @@ namespace DofuxyaManager
                 }
                 report.AppendLine(System.IO.Path.GetFileName(args[i]) + " : " + reading.Summary()
                     + (reading.Note.Length > 0 ? " [" + reading.Note + "]" : ""));
+                foreach (string unlocked in reading.Unlocked) report.AppendLine("  récompense de succès : " + unlocked);
                 foreach (string line in reading.ChatLines)
                 {
                     string achievement = UnlockedAchievement(line);
@@ -450,6 +460,49 @@ namespace DofuxyaManager
                 if (value <= 0) continue;
                 if (omega) reading.Omega = value;
                 else if (value <= 200) reading.Level = value;
+            }
+
+            // Fenetre de passage de niveau : bandeau « NIVEAU 2 » au-dessus du bouton « CARACTÉRISTIQUES ».
+            foreach (Word word in words)
+            {
+                bool omega = word.Text == "OMEGA" || word.Text == "OMÉGA";
+                if (word.Text != "NIVEAU" && !omega) continue;
+                bool popup = false;
+                foreach (Word other in words)
+                {
+                    if ((other.Text == "CARACTÉRISTIQUES" || other.Text == "CARACTERISTIQUES" || other.Text == "AUGMENTATIONS")
+                        && other.Y > word.Y && other.Y - word.Y < 320 && Math.Abs(other.X - word.X) < 300) popup = true;
+                }
+                if (!popup) continue;
+                int value = NumberRightOf(words, word, 120);
+                if (omega && value > 0 && value > reading.Omega) reading.Omega = value;
+                else if (!omega && value > 0 && value <= 200 && value > reading.Level) reading.Level = value;
+            }
+
+            // Fenetre des recompenses de succes : « Temple Céleste … Exploration », puis « RÉCUPÉRER » dessous.
+            foreach (Word category in words)
+            {
+                string normalized = Normalize(category.Text);
+                if (Array.IndexOf(Categories, normalized) < 0) continue;
+                bool reward = false;
+                foreach (Word other in words)
+                {
+                    string text = Normalize(other.Text);
+                    if ((text == "recuperer" || text == "xp") && other.Y > category.Y && other.Y - category.Y < 90
+                        && Math.Abs(other.X - category.X) < 200) reward = true;
+                }
+                if (!reward) continue;
+                List<Word> title = new List<Word>();
+                foreach (Word other in words)
+                {
+                    if (other != category && SameRow(other, category) && other.Right < category.X - 30
+                        && category.X - other.X < 700) title.Add(other);
+                }
+                if (title.Count == 0) continue;
+                title.Sort(delegate(Word a, Word b) { return a.X.CompareTo(b.X); });
+                StringBuilder label = new StringBuilder();
+                foreach (Word part in title) label.Append(label.Length > 0 ? " " : "").Append(part.Text);
+                reading.Unlocked.Add(label + " (" + category.Text + ")");
             }
 
             // Barre d'XP : « NIV. 152 » sans omega, sinon le niveau omega seul sur une pastille doree.

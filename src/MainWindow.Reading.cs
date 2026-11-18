@@ -77,7 +77,7 @@ namespace DofuxyaManager
                     string before = window.LastReading != null ? window.LastReading.Values() : "";
                     result.KeepFrom(window.LastReading);
                     window.LastReading = result;
-                    bool events = NoteChatEvents(window, result);
+                    bool events = NoteChatEvents(window, result) | NoteUnlocked(window, result);
                     // L'onglet n'est redessine que si une valeur affichee a change.
                     if (result.Values() != before || events) RebuildRows();
                     UpdateSiteButton();
@@ -180,6 +180,29 @@ namespace DofuxyaManager
             {
             }
             lastMessage = message ?? window.Name + " : " + fresh[fresh.Count - 1];
+            return true;
+        }
+
+        // Succes lus dans la fenetre des recompenses a recuperer : retenus pour le perso et notes une fois.
+        private bool NoteUnlocked(GameWindow window, Reading result)
+        {
+            StringBuilder text = new StringBuilder();
+            foreach (string unlocked in result.Unlocked)
+            {
+                if (window.Unlocked.Contains(unlocked)) continue;
+                window.Unlocked.Add(unlocked);
+                text.AppendLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [" + window.Name + "] [succès] " + unlocked
+                    + " (récompense à récupérer)");
+                lastMessage = window.Name + " : succès « " + unlocked + " » débloqué.";
+            }
+            if (text.Length == 0) return false;
+            try
+            {
+                File.AppendAllText(Path.Combine(AppPaths.DataFolder, "evenements.txt"), text.ToString(), Encoding.UTF8);
+            }
+            catch (Exception)
+            {
+            }
             return true;
         }
 
