@@ -171,6 +171,7 @@ namespace DofuxyaManager
             fullscreenTimer.Interval = TimeSpan.FromSeconds(1);
             fullscreenTimer.Tick += delegate { UpdateFullscreenMarks(); };
             fullscreenTimer.Start();
+            StartAutoReading();
             RefreshAll(true);
         }
         // ---------- Détection ----------

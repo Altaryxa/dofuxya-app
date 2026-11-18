@@ -24,6 +24,35 @@ namespace DofuxyaManager
         public string Note = "";
         public string Diagnostic = "";   // details de lecture, pour le journal seulement
         public readonly List<string> Events = new List<string>();
+        // Lignes du chat visibles (texte apres l'heure), pour reperer les nouvelles d'une lecture a l'autre.
+        public readonly List<string> ChatLines = new List<string>();
+
+        // Garde les valeurs d'un releve precedent que celui-ci n'a pas lues (total de succes quand le
+        // panneau est ferme, par exemple).
+        public void KeepFrom(Reading previous)
+        {
+            if (previous == null) return;
+            if (Level == 0 && Omega == 0)
+            {
+                Level = previous.Level;
+                Omega = previous.Omega;
+            }
+            if (Success == 0)
+            {
+                Success = previous.Success;
+                SuccessFromAccount = previous.SuccessFromAccount;
+            }
+            // Les evenements du chat deja vus restent dans l'infobulle (les 10 derniers).
+            List<string> events = new List<string>(previous.Events);
+            events.AddRange(Events);
+            Events.Clear();
+            Events.AddRange(events.GetRange(Math.Max(0, events.Count - 10), Math.Min(10, events.Count)));
+        }
+
+        public string Values()
+        {
+            return Level + "/" + Omega + "/" + Success + "/" + SuccessFromAccount;
+        }
 
         public string Summary()
         {
@@ -106,6 +135,106 @@ namespace DofuxyaManager
             Parse(reading, words, lines, image, name);
         }
 
+        // ---------- Lecture continue (voir ScreenWatcher) ----------
+
+        // Zone utile de la fenetre : panneau des succes, chat, barre d'XP, fiche Caracteristiques.
+        public class Zone
+        {
+            public string Kind;
+            public Rectangle Rect;
+        }
+
+        // Lecture complete d'une image, avec les zones utiles reperees (coordonnees de l'image).
+        public static void ReadFull(Reading reading, Bitmap image, string name, List<Zone> zones, List<string> panelLines)
+        {
+            List<Word> words;
+            List<string> lines;
+            Recognize(image, out words, out lines);
+            Parse(reading, words, lines, image, name);
+            FindZones(words, lines, new Rectangle(0, 0, image.Width, image.Height), zones);
+            foreach (Zone zone in zones)
+            {
+                if (zone.Kind != "succes") continue;
+                foreach (Word word in words)
+                {
+                    if (zone.Rect.Contains((int)word.X, (int)word.Y)) { CollectPanel(lines, words, zone.Rect, panelLines); break; }
+                }
+            }
+        }
+
+        // Lecture d'une zone deja decoupee (image de la zone seule).
+        public static void ReadZone(Reading reading, Bitmap zoneImage, string kind, string name, List<string> panelLines)
+        {
+            List<Word> words;
+            List<string> lines;
+            Recognize(zoneImage, out words, out lines);
+            Parse(reading, words, lines, zoneImage, name);
+            if (kind == "succes") CollectPanel(lines, words, new Rectangle(0, 0, zoneImage.Width, zoneImage.Height), panelLines);
+        }
+
+        // Textes du panneau des succes (pour constituer le catalogue), sans les positions.
+        private static void CollectPanel(List<string> lines, List<Word> words, Rectangle rect, List<string> panelLines)
+        {
+            if (panelLines == null) return;
+            HashSet<int> inside = new HashSet<int>();
+            foreach (Word word in words)
+            {
+                if (rect.Contains((int)word.X, (int)word.Y)) inside.Add(word.Line);
+            }
+            for (int i = 0; i < lines.Count; i++)
+            {
+                if (inside.Contains(i)) panelLines.Add(lines[i].Substring(12).Trim());
+            }
+        }
+
+        private static void FindZones(List<Word> words, List<string> lines, Rectangle bounds, List<Zone> zones)
+        {
+            // Panneau des succes : autour de son titre (le « Succès » ecrit le plus grand).
+            Word title = null;
+            foreach (Word word in words)
+            {
+                if ((word.Text == "Succès" || word.Text == "Succes") && (title == null || word.H > title.H)) title = word;
+            }
+            if (title != null) Add(zones, "succes", new Rectangle((int)title.X - 580, (int)title.Y - 24, 1240, 880), bounds);
+
+            // Chat : l'ensemble des lignes qui commencent par une heure.
+            Rectangle chat = Rectangle.Empty;
+            for (int i = 0; i < lines.Count; i++)
+            {
+                if (!ChatLine.IsMatch(lines[i].Substring(12))) continue;
+                foreach (Word word in words)
+                {
+                    if (word.Line != i) continue;
+                    Rectangle r = new Rectangle((int)word.X, (int)word.Y, (int)word.W + 1, (int)word.H + 1);
+                    chat = chat.IsEmpty ? r : Rectangle.Union(chat, r);
+                }
+            }
+            if (!chat.IsEmpty) Add(zones, "chat", new Rectangle(chat.X - 40, chat.Y - 24, chat.Width + 400, chat.Height + 48), bounds);
+
+            // Barre d'XP (« NIV. 152 » ou icone omega) et fiche Caracteristiques (« OMÉGA 152 | ENUTROF »).
+            foreach (Word word in words)
+            {
+                if (word.Text == "NIV" || word.Text == "NIV." || word.Text == "n")
+                {
+                    Add(zones, "xp", new Rectangle((int)word.X - 20, (int)word.Y - 14, 200, (int)word.H + 28), bounds);
+                }
+                if ((word.Text == "OMEGA" || word.Text == "OMÉGA" || word.Text == "NIVEAU") && ClassOnRow(words, word))
+                {
+                    Add(zones, "fiche", new Rectangle((int)word.X - 20, (int)word.Y - 20, 420, (int)word.H + 40), bounds);
+                }
+            }
+        }
+
+        private static void Add(List<Zone> zones, string kind, Rectangle rect, Rectangle bounds)
+        {
+            rect.Intersect(bounds);
+            if (rect.Width < 20 || rect.Height < 10) return;
+            zones.Add(new Zone { Kind = kind, Rect = rect });
+        }
+
+        private static readonly Regex ChatLine =
+            new Regex(@"^\S{0,2}\s*\[?\s*[CI]?\d{1,2}\s*[:.]?\s*\d{2}\s*[\]1l)]\s*(.+)$");
+
         // Essai hors jeu : « Dofuxya.exe --essai-lecture sortie.txt image1.png image2.png… ».
         public static void TestFiles(string[] args)
         {
@@ -185,6 +314,58 @@ namespace DofuxyaManager
             }
             image.Dispose();
             return null;
+        }
+
+        // Zone client entiere (area vide) ou partie de la fenetre au premier plan, copiee depuis
+        // l'ecran (rapide) ; PrintWindow en secours pour la fenetre entiere.
+        public static Bitmap CaptureArea(IntPtr hWnd, Rectangle area)
+        {
+            Native.RECT client;
+            if (!GetClientRect(hWnd, out client)) return null;
+            if (area.IsEmpty) area = new Rectangle(0, 0, client.Right - client.Left, client.Bottom - client.Top);
+            if (area.Width < 20 || area.Height < 10) return null;
+            if (Native.GetForegroundWindow() != hWnd) return area.X == 0 && area.Y == 0 ? Capture(hWnd) : null;
+            POINT origin = new POINT();
+            ClientToScreen(hWnd, ref origin);
+            Bitmap image = new Bitmap(area.Width, area.Height, PixelFormat.Format32bppArgb);
+            using (Graphics graphics = Graphics.FromImage(image))
+            {
+                graphics.CopyFromScreen(origin.X + area.X, origin.Y + area.Y, 0, 0, area.Size);
+            }
+            return image;
+        }
+
+        // Empreinte grossiere d'une image (une luminosite sur 16 tous les 4 pixels) pour voir si
+        // elle a change, sans reconnaissance de texte.
+        public static byte[] Signature(Bitmap image)
+        {
+            Rectangle area = new Rectangle(0, 0, image.Width, image.Height);
+            BitmapData data = image.LockBits(area, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+            byte[] row = new byte[data.Stride];
+            List<byte> samples = new List<byte>();
+            for (int y = 0; y < image.Height; y += 4)
+            {
+                Marshal.Copy(new IntPtr(data.Scan0.ToInt64() + (long)y * data.Stride), row, 0, row.Length);
+                for (int x = 0; x < image.Width; x += 4)
+                {
+                    int i = x * 4;
+                    samples.Add((byte)((row[i] + row[i + 1] * 2 + row[i + 2]) / 64));
+                }
+            }
+            image.UnlockBits(data);
+            return samples.ToArray();
+        }
+
+        // Vrai si deux empreintes different sur plus de 1 % des points.
+        public static bool Differs(byte[] a, byte[] b)
+        {
+            if (a == null || b == null || a.Length != b.Length) return true;
+            int changed = 0;
+            for (int i = 0; i < a.Length; i++)
+            {
+                if (a[i] != b[i]) changed++;
+            }
+            return changed * 100 > a.Length;
         }
 
         private static bool IsBlack(Bitmap image)
@@ -288,15 +469,31 @@ namespace DofuxyaManager
             if (reading.Level == 0 && reading.Omega == 0) reading.Omega = ZoomOmega(reading, words, image);
             if (reading.Omega > 0) reading.Level = 200;
 
-            // Chat : lignes qui citent le perso (ou « Vous ») avec succès, niveau ou oméga.
+            // Chat : lignes commencant par une heure (« [17:28] … », souvent mal lue : « [17:281 »).
             foreach (string line in lines)
             {
-                string lower = line.ToLowerInvariant();
-                bool aboutMe = lower.Contains(name.ToLowerInvariant()) || lower.Contains("vous ");
-                bool topic = lower.Contains("succès") || lower.Contains("niveau") || lower.Contains("oméga")
-                    || lower.Contains("omega");
-                if (aboutMe && topic && lower.Contains("[")) reading.Events.Add(line.Substring(12).Trim());
+                Match chat = ChatLine.Match(line.Substring(12));
+                if (chat.Success) reading.ChatLines.Add(chat.Groups[1].Value.Trim());
             }
+        }
+
+        // Ligne du chat qui parle d'un succes, d'un niveau ou de l'omega.
+        public static bool IsProgressLine(string line)
+        {
+            string lower = line.ToLowerInvariant();
+            return lower.Contains("succès") || lower.Contains("succes") || lower.Contains("niveau")
+                || lower.Contains("oméga") || lower.Contains("omega");
+        }
+
+        // Forme comparable d'une ligne du chat (la lecture varie un peu d'une capture a l'autre).
+        public static string ChatKey(string line)
+        {
+            StringBuilder key = new StringBuilder();
+            foreach (char c in line.ToLowerInvariant())
+            {
+                if (char.IsLetter(c)) key.Append(c);
+            }
+            return key.ToString();
         }
 
         // L'icone omega est lue « n » ; la pastille doree a sa droite porte le nombre. On relit cette

@@ -18,6 +18,151 @@ namespace DofuxyaManager
         private Button siteButton;
         private bool reading;
         private bool siteBusy;
+        private readonly System.Windows.Threading.DispatcherTimer autoTimer = new System.Windows.Threading.DispatcherTimer();
+        // Lignes du chat deja vues, par fenetre : seules les nouvelles comptent.
+        private readonly Dictionary<IntPtr, HashSet<string>> seenChat = new Dictionary<IntPtr, HashSet<string>>();
+
+        // ---------- Releve continu ----------
+
+        private readonly ScreenWatcher watcher = new ScreenWatcher();
+        // Textes du panneau des succes deja notes dans succes-vus.txt (par perso).
+        private readonly HashSet<string> seenPanel = new HashSet<string>();
+        // Mesure du cout de la lecture continue, ecrite chaque minute dans lecture-continue.txt.
+        private int statTicks;
+        private int statReads;
+        private double statMs;
+        private double statMaxMs;
+
+        private void StartAutoReading()
+        {
+            autoTimer.Interval = TimeSpan.FromSeconds(1);
+            autoTimer.Tick += delegate { AutoRead(); };
+            autoTimer.Start();
+        }
+
+        // Chaque seconde : verification legere de la fenetre Dofus au premier plan (voir ScreenWatcher),
+        // en priorite basse pour laisser la main au jeu.
+        private void AutoRead()
+        {
+            if (!settings.ScreenReading || !settings.AutoReading || reading) return;
+            GameWindow window = FindWindow(Native.GetForegroundWindow());
+            if (window == null || !window.IsNamed || window.IsRetro) return;
+            reading = true;
+            IntPtr handle = window.Handle;
+            string name = window.Name;
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                Reading result = null;
+                List<string> panelLines = new List<string>();
+                Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
+                System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+                try
+                {
+                    result = watcher.Tick(handle, name, panelLines);
+                }
+                catch (Exception)
+                {
+                }
+                finally
+                {
+                    Thread.CurrentThread.Priority = ThreadPriority.Normal;
+                }
+                double ms = clock.Elapsed.TotalMilliseconds;
+                Dispatcher.BeginInvoke(new Action(delegate
+                {
+                    reading = false;
+                    NoteCost(ms, result != null);
+                    NotePanelLines(name, panelLines);
+                    if (result == null || !windows.Contains(window)) return;
+                    string before = window.LastReading != null ? window.LastReading.Values() : "";
+                    result.KeepFrom(window.LastReading);
+                    window.LastReading = result;
+                    bool events = NoteChatEvents(window, result);
+                    // L'onglet n'est redessine que si une valeur affichee a change.
+                    if (result.Values() != before || events) RebuildRows();
+                    UpdateSiteButton();
+                    UpdateStatus();
+                }));
+            });
+        }
+
+        private void NoteCost(double ms, bool read)
+        {
+            statTicks++;
+            statMs += ms;
+            statMaxMs = Math.Max(statMaxMs, ms);
+            if (read) statReads++;
+            if (statTicks < 60) return;
+            string line = DateTime.Now.ToString("HH:mm") + " : " + statTicks + " vérifications, "
+                + (statMs / statTicks).ToString("0") + " ms en moyenne (au plus " + statMaxMs.ToString("0") + " ms), "
+                + statReads + " lecture(s) de texte, soit " + (statMs / 600).ToString("0.0") + " % d'un cœur du processeur"
+                + Environment.NewLine;
+            try
+            {
+                File.AppendAllText(Path.Combine(AppPaths.DataFolder, "lecture-continue.txt"), line, Encoding.UTF8);
+            }
+            catch (Exception)
+            {
+            }
+            statTicks = 0;
+            statReads = 0;
+            statMs = 0;
+            statMaxMs = 0;
+        }
+
+        // Textes lus dans le panneau des succes : notes une fois dans succes-vus.txt (base du futur
+        // catalogue des succes).
+        private void NotePanelLines(string name, List<string> lines)
+        {
+            StringBuilder text = new StringBuilder();
+            foreach (string line in lines)
+            {
+                if (line.Length < 3 || !seenPanel.Add(name + "\t" + line)) continue;
+                text.AppendLine(name + "\t" + line);
+            }
+            if (text.Length == 0) return;
+            try
+            {
+                File.AppendAllText(Path.Combine(AppPaths.DataFolder, "succes-vus.txt"), text.ToString(), Encoding.UTF8);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        // Nouvelles lignes du chat qui parlent de succes, de niveau ou d'omega : notees dans
+        // evenements.txt (pour apprendre leur format) et affichees dans la barre d'etat.
+        private bool NoteChatEvents(GameWindow window, Reading result)
+        {
+            if (result.ChatLines.Count == 0) return false;
+            HashSet<string> seen;
+            // Premiere lecture du chat de cette fenetre : ce qui s'y trouve deja ne compte pas.
+            bool first = !seenChat.TryGetValue(window.Handle, out seen);
+            if (first) seenChat[window.Handle] = seen = new HashSet<string>();
+            List<string> fresh = new List<string>();
+            foreach (string line in result.ChatLines)
+            {
+                string key = ScreenReader.ChatKey(line);
+                if (key.Length < 6 || !seen.Add(key) || first) continue;
+                if (ScreenReader.IsProgressLine(line)) fresh.Add(line);
+            }
+            if (fresh.Count == 0) return false;
+            StringBuilder text = new StringBuilder();
+            foreach (string line in fresh)
+            {
+                text.AppendLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [" + window.Name + "] " + line);
+                result.Events.Add(line);
+            }
+            try
+            {
+                File.AppendAllText(Path.Combine(AppPaths.DataFolder, "evenements.txt"), text.ToString(), Encoding.UTF8);
+            }
+            catch (Exception)
+            {
+            }
+            lastMessage = window.Name + " : " + fresh[fresh.Count - 1];
+            return true;
+        }
 
         // ---------- Releve ----------
 

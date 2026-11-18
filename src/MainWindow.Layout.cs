@@ -456,6 +456,18 @@ namespace DofuxyaManager
                     if (value) MaximizeRetroWindows();
                 }));
 
+            if (settings.ScreenReading)
+            {
+                page.Children.Add(MakeOption("Relever automatiquement la fenêtre Dofus active (prototype)",
+                    settings.AutoReading, delegate(bool value)
+                    {
+                        settings.AutoReading = value;
+                        settings.Save();
+                    }, "Toutes les 30 secondes, l'outil lit niveau, oméga et succès de la fenêtre Dofus au premier "
+                        + "plan, et note les nouveaux messages du chat qui parlent de succès ou de niveau dans "
+                        + "evenements.txt. Rien n'est envoyé au site sans ton accord."));
+            }
+
             page.Children.Add(MakeSectionTitle("Démarrage"));
             page.Children.Add(MakeOption("Lancer avec Windows, réduit dans la zone de notification",
                 IsAutoStartEnabled(), delegate(bool value)
