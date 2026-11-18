@@ -363,6 +363,43 @@ namespace DofuxyaManager
             return image;
         }
 
+        // Les quatre coins de la zone client (taille proportionnelle a la fenetre, 460 x 220 a 2560 px de large).
+        public static Rectangle[] Corners(IntPtr hWnd)
+        {
+            Native.RECT client;
+            if (!GetClientRect(hWnd, out client)) return new Rectangle[0];
+            int width = client.Right - client.Left, height = client.Bottom - client.Top;
+            double scale = Math.Max(0.5, width / 2560.0);
+            int w = Math.Min(width / 2, (int)(460 * scale)), h = Math.Min(height / 2, (int)(220 * scale));
+            return new[]
+            {
+                new Rectangle(0, 0, w, h), new Rectangle(width - w, 0, w, h),
+                new Rectangle(0, height - h, w, h), new Rectangle(width - w, height - h, w, h),
+            };
+        }
+
+        // Part de pixels jaune vif (fond de la notification de succes), un point sur trois.
+        public static double YellowShare(Bitmap image)
+        {
+            Rectangle area = new Rectangle(0, 0, image.Width, image.Height);
+            BitmapData data = image.LockBits(area, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+            byte[] row = new byte[data.Stride];
+            int yellow = 0, total = 0;
+            for (int y = 0; y < image.Height; y += 3)
+            {
+                Marshal.Copy(new IntPtr(data.Scan0.ToInt64() + (long)y * data.Stride), row, 0, row.Length);
+                for (int x = 0; x < image.Width; x += 3)
+                {
+                    int i = x * 4;
+                    int b = row[i], g = row[i + 1], r = row[i + 2];
+                    total++;
+                    if (r > 215 && g > 150 && b < 110 && r - b > 130) yellow++;
+                }
+            }
+            image.UnlockBits(data);
+            return total == 0 ? 0 : (double)yellow / total;
+        }
+
         // Empreinte grossiere d'une image (une luminosite sur 16 tous les 4 pixels) pour voir si
         // elle a change, sans reconnaissance de texte.
         public static byte[] Signature(Bitmap image)
