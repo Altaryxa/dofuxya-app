@@ -461,28 +461,17 @@ namespace DofuxyaManager
             return page;
         }
 
-        // Titre de section : petites capitales vertes suivies d'un trait, pour se detacher des lignes
-        // de reglage. "info" ajoute un « i » dont l'infobulle explique la section.
+        // Titre de section : petites capitales vertes, pour se detacher des lignes de reglage.
+        // "info" ajoute un « i » dont l'infobulle explique la section.
         private static FrameworkElement MakeSectionTitle(string text, string info = null)
         {
-            DockPanel title = new DockPanel();
+            StackPanel title = new StackPanel();
+            title.Orientation = Orientation.Horizontal;
             title.Margin = new Thickness(0, 10, 0, 14);
             TextBlock label = Ui.Text(text.ToUpper(), 12, true, Ui.ColAccent);
             label.VerticalAlignment = VerticalAlignment.Center;
-            DockPanel.SetDock(label, Dock.Left);
             title.Children.Add(label);
-            if (info != null)
-            {
-                FrameworkElement badge = Ui.InfoBadge(info);
-                DockPanel.SetDock(badge, Dock.Left);
-                title.Children.Add(badge);
-            }
-            Border line = new Border();
-            line.Height = 1;
-            line.Background = Ui.Paint(Ui.ColLine);
-            line.VerticalAlignment = VerticalAlignment.Center;
-            line.Margin = new Thickness(12, 1, 0, 0);
-            title.Children.Add(line);
+            if (info != null) title.Children.Add(Ui.InfoBadge(info));
             return title;
         }
 
@@ -546,6 +535,13 @@ namespace DofuxyaManager
         {
             TextBlock cell = Ui.Text(text, 11, true, Ui.ColMuted);
             if (column >= 3) cell.HorizontalAlignment = HorizontalAlignment.Center;
+            if (column == 0)
+            {
+                // Centre au-dessus des pastilles de rang (32 px, calees a gauche).
+                cell.Width = 32;
+                cell.TextAlignment = TextAlignment.Center;
+                cell.HorizontalAlignment = HorizontalAlignment.Left;
+            }
             Grid.SetColumn(cell, column);
             grid.Children.Add(cell);
         }
