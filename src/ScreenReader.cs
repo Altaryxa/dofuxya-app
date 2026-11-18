@@ -220,6 +220,16 @@ namespace DofuxyaManager
             }
             if (!chat.IsEmpty) Add(zones, "chat", new Rectangle(chat.X - 40, chat.Y - 24, chat.Width + 400, chat.Height + 48), bounds);
 
+            // Notification de succes : elle ne reste que quelques secondes, sa place est retenue (ScreenWatcher).
+            foreach (Word word in words)
+            {
+                if (IsToastAnchor(words, word))
+                {
+                    // Au plus juste dans la notification (opaque) : le decor anime autour ne doit pas compter.
+                    Add(zones, "notification", new Rectangle((int)word.X - 60, (int)word.Y - 10, 300, (int)word.H * 3 + 14), bounds);
+                }
+            }
+
             // Barre d'XP (« NIV. 152 » ou icone omega) et fiche Caracteristiques (« OMÉGA 152 | ENUTROF »).
             foreach (Word word in words)
             {
@@ -479,6 +489,27 @@ namespace DofuxyaManager
                 else if (!omega && value > 0 && value <= 200 && value > reading.Level) reading.Level = value;
             }
 
+            // Notification « SUCCÈS DÉVERROUILLÉ ! » avec le nom du succes juste dessous.
+            foreach (Word anchor in words)
+            {
+                if (!IsToastAnchor(words, anchor)) continue;
+                List<Word> below = new List<Word>();
+                Word first = null;
+                foreach (Word other in words)
+                {
+                    if (other.Y <= anchor.Y + anchor.H * 0.6 || other.Y > anchor.Y + anchor.H * 3) continue;
+                    if (other.X < anchor.X - 30 || other.X > anchor.X + 420) continue;
+                    if (first == null || other.Y < first.Y) first = other;
+                    below.Add(other);
+                }
+                if (first == null) continue;
+                List<Word> row = below.FindAll(delegate(Word w) { return SameRow(w, first); });
+                row.Sort(delegate(Word a, Word b) { return a.X.CompareTo(b.X); });
+                StringBuilder label = new StringBuilder();
+                foreach (Word part in row) label.Append(label.Length > 0 ? " " : "").Append(part.Text);
+                if (label.Length > 1) reading.Unlocked.Add(label.ToString());
+            }
+
             // Fenetre des recompenses de succes : « Temple Céleste … Exploration », puis « RÉCUPÉRER » dessous.
             foreach (Word category in words)
             {
@@ -688,6 +719,18 @@ namespace DofuxyaManager
             if (account != null && IsGreen(image, account)) reading.SuccessFromAccount = true;
             else reading.Note = "onglet Compte / Personnage non reconnu";
             return best;
+        }
+
+        // « SUCCÈS » en capitales suivi de « DÉVERROUILLÉ » sur la meme ligne (notification du jeu).
+        private static bool IsToastAnchor(List<Word> words, Word anchor)
+        {
+            if (anchor.Text != "SUCCÈS" && anchor.Text != "SUCCES") return false;
+            foreach (Word other in words)
+            {
+                if (SameRow(other, anchor) && other.X > anchor.X && other.X - anchor.Right < 40
+                    && Normalize(other.Text) == "deverrouille") return true;
+            }
+            return false;
         }
 
         private static bool ClassOnRow(List<Word> words, Word anchor)

@@ -26,6 +26,9 @@ namespace DofuxyaManager
         private IntPtr window = IntPtr.Zero;
         private DateTime lastFull = DateTime.MinValue;
         private readonly List<Watched> zones = new List<Watched>();
+        // Place de la notification « Succès déverrouillé » de chaque fenetre, gardee d'une lecture
+        // complete a l'autre : la notification ne dure que quelques secondes.
+        private readonly Dictionary<IntPtr, Rectangle> notificationPlace = new Dictionary<IntPtr, Rectangle>();
 
         // Renvoie un releve quand quelque chose a ete lu, sinon null. panelLines recoit les textes du
         // panneau des succes lus a cette occasion.
@@ -62,6 +65,10 @@ namespace DofuxyaManager
                 Reading reading = new Reading { At = DateTime.Now };
                 List<ScreenReader.Zone> found = new List<ScreenReader.Zone>();
                 ScreenReader.ReadFull(reading, image, name, found, panelLines);
+                ScreenReader.Zone notification = found.Find(delegate(ScreenReader.Zone z) { return z.Kind == "notification"; });
+                Rectangle place;
+                if (notification != null) notificationPlace[hWnd] = notification.Rect;
+                else if (notificationPlace.TryGetValue(hWnd, out place)) found.Add(new ScreenReader.Zone { Kind = "notification", Rect = place });
                 foreach (ScreenReader.Zone zone in found)
                 {
                     using (Bitmap part = image.Clone(zone.Rect, image.PixelFormat))

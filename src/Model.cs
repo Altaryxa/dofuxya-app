@@ -123,6 +123,28 @@ namespace DofuxyaManager
             get { return Game + "\t" + Name; }
         }
 
+        // Retient un succes debloque (« nom » ou « nom (catégorie) ») s'il n'est pas deja connu, meme
+        // vu par un autre moyen (chat, notification, fenetre des recompenses). Renvoie true si nouveau.
+        public bool AddUnlocked(string achievement)
+        {
+            string key = ScreenReader.ChatKey(BaseName(achievement));
+            foreach (string known in Unlocked)
+            {
+                if (ScreenReader.ChatKey(BaseName(known)) != key) continue;
+                // On garde la forme la plus complete (avec la catégorie).
+                if (achievement.Length > known.Length) Unlocked[Unlocked.IndexOf(known)] = achievement;
+                return false;
+            }
+            Unlocked.Add(achievement);
+            return true;
+        }
+
+        private static string BaseName(string achievement)
+        {
+            int paren = achievement.LastIndexOf(" (");
+            return paren > 0 ? achievement.Substring(0, paren) : achievement;
+        }
+
         // Faux tant que la fenetre n'affiche pas de personnage (connexion, choix du personnage).
         public bool IsNamed
         {

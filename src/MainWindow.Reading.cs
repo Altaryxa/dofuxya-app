@@ -159,7 +159,7 @@ namespace DofuxyaManager
                 if (achievement != null)
                 {
                     kind = "succès";
-                    if (!window.Unlocked.Contains(achievement)) window.Unlocked.Add(achievement);
+                    if (!window.AddUnlocked(achievement)) { result.Events.Add(line); continue; }
                     message = window.Name + " : succès « " + achievement + " » débloqué.";
                 }
                 else if (ScreenReader.LevelUpOf(line, window.Name, out value, out omega))
@@ -189,10 +189,8 @@ namespace DofuxyaManager
             StringBuilder text = new StringBuilder();
             foreach (string unlocked in result.Unlocked)
             {
-                if (window.Unlocked.Contains(unlocked)) continue;
-                window.Unlocked.Add(unlocked);
-                text.AppendLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [" + window.Name + "] [succès] " + unlocked
-                    + " (récompense à récupérer)");
+                if (!window.AddUnlocked(unlocked)) continue;
+                text.AppendLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [" + window.Name + "] [succès] " + unlocked);
                 lastMessage = window.Name + " : succès « " + unlocked + " » débloqué.";
             }
             if (text.Length == 0) return false;
