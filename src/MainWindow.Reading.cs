@@ -27,11 +27,16 @@ namespace DofuxyaManager
         private readonly ScreenWatcher watcher = new ScreenWatcher();
         // Textes du panneau des succes deja notes dans succes-vus.txt (par perso).
         private readonly HashSet<string> seenPanel = new HashSet<string>();
+        // Passage dans les fenetres en arriere-plan : une toutes les 6 secondes, chacune a son tour.
+        private const int SweepEvery = 6;
+        private int sweepTick;
+        private int sweepIndex;
         // Mesure du cout de la lecture continue, ecrite chaque minute dans lecture-continue.txt.
         private int statTicks;
         private int statReads;
         private double statMs;
         private double statMaxMs;
+        private DateTime statStart = DateTime.UtcNow;
 
         private void StartAutoReading()
         {
@@ -46,19 +51,25 @@ namespace DofuxyaManager
         {
             if (!settings.ScreenReading || !settings.AutoReading || reading) return;
             GameWindow window = FindWindow(Native.GetForegroundWindow());
-            if (window == null || !window.IsNamed || window.IsRetro) return;
+            if (window != null && (!window.IsNamed || window.IsRetro)) window = null;
+            GameWindow other = NextBackgroundWindow(window);
+            if (window == null && other == null) return;
             reading = true;
-            IntPtr handle = window.Handle;
-            string name = window.Name;
+            IntPtr handle = window != null ? window.Handle : IntPtr.Zero;
+            string name = window != null ? window.Name : "";
+            IntPtr otherHandle = other != null ? other.Handle : IntPtr.Zero;
+            string otherName = other != null ? other.Name : "";
             ThreadPool.QueueUserWorkItem(delegate
             {
                 Reading result = null;
+                Reading otherResult = null;
                 List<string> panelLines = new List<string>();
                 Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
                 System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
                 try
                 {
-                    result = watcher.Tick(handle, name, panelLines);
+                    if (handle != IntPtr.Zero) result = watcher.Tick(handle, name, panelLines);
+                    if (otherHandle != IntPtr.Zero) otherResult = watcher.Sweep(otherHandle, otherName);
                 }
                 catch (Exception)
                 {
@@ -71,19 +82,46 @@ namespace DofuxyaManager
                 Dispatcher.BeginInvoke(new Action(delegate
                 {
                     reading = false;
-                    NoteCost(ms, result != null);
+                    NoteCost(ms, result != null || otherResult != null);
                     NotePanelLines(name, panelLines);
-                    if (result == null || !windows.Contains(window)) return;
-                    string before = window.LastReading != null ? window.LastReading.Values() : "";
-                    result.KeepFrom(window.LastReading);
-                    window.LastReading = result;
-                    bool events = NoteChatEvents(window, result) | NoteUnlocked(window, result);
-                    // L'onglet n'est redessine que si une valeur affichee a change.
-                    if (result.Values() != before || events) RebuildRows();
+                    bool changed = Apply(window, result) | Apply(other, otherResult);
+                    if (changed) RebuildRows();
                     UpdateSiteButton();
                     UpdateStatus();
                 }));
             });
+        }
+
+        // Fenetre en arriere-plan a visiter a ce tour-ci (une toutes les 6 secondes), ou null.
+        private GameWindow NextBackgroundWindow(GameWindow foreground)
+        {
+            if (++sweepTick < SweepEvery) return null;
+            sweepTick = 0;
+            List<GameWindow> candidates = new List<GameWindow>();
+            HashSet<IntPtr> open = new HashSet<IntPtr>();
+            foreach (GameWindow window in windows)
+            {
+                open.Add(window.Handle);
+                if (window != foreground && window.IsNamed && !window.IsRetro && !Native.IsIconic(window.Handle))
+                {
+                    candidates.Add(window);
+                }
+            }
+            watcher.Forget(open);
+            if (candidates.Count == 0) return null;
+            sweepIndex = (sweepIndex + 1) % candidates.Count;
+            return candidates[sweepIndex];
+        }
+
+        // Range un releve sur la carte du perso. Renvoie true si l'onglet doit etre redessine.
+        private bool Apply(GameWindow window, Reading result)
+        {
+            if (window == null || result == null || !windows.Contains(window)) return false;
+            string before = window.LastReading != null ? window.LastReading.Values() : "";
+            result.KeepFrom(window.LastReading);
+            window.LastReading = result;
+            bool events = NoteChatEvents(window, result) | NoteUnlocked(window, result);
+            return result.Values() != before || events;
         }
 
         private void NoteCost(double ms, bool read)
@@ -92,11 +130,12 @@ namespace DofuxyaManager
             statMs += ms;
             statMaxMs = Math.Max(statMaxMs, ms);
             if (read) statReads++;
-            if (statTicks < 60) return;
+            double elapsed = (DateTime.UtcNow - statStart).TotalMilliseconds;
+            if (elapsed < 60000) return;
             string line = DateTime.Now.ToString("HH:mm") + " : " + statTicks + " vérifications, "
                 + (statMs / statTicks).ToString("0") + " ms en moyenne (au plus " + statMaxMs.ToString("0") + " ms), "
-                + statReads + " lecture(s) de texte, soit " + (statMs / 600).ToString("0.0") + " % d'un cœur du processeur"
-                + Environment.NewLine;
+                + statReads + " avec lecture de texte, soit " + (statMs * 100 / elapsed).ToString("0.0")
+                + " % d'un cœur du processeur" + Environment.NewLine;
             try
             {
                 File.AppendAllText(Path.Combine(AppPaths.DataFolder, "lecture-continue.txt"), line, Encoding.UTF8);
@@ -104,6 +143,7 @@ namespace DofuxyaManager
             catch (Exception)
             {
             }
+            statStart = DateTime.UtcNow;
             statTicks = 0;
             statReads = 0;
             statMs = 0;

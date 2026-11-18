@@ -57,6 +57,75 @@ namespace DofuxyaManager
             return reading;
         }
 
+        // ---------- Fenetres en arriere-plan ----------
+
+        // Un passage dans une fenetre en arriere-plan : seulement son chat et sa barre d'XP, reperes
+        // par une lecture complete (la premiere fois, puis toutes les 5 minutes). La fenetre est
+        // capturee meme cachee ; le texte n'est lu que si une de ces zones a change.
+        private static readonly TimeSpan BackgroundFullEvery = TimeSpan.FromMinutes(5);
+
+        private class Background
+        {
+            public DateTime LastFull;
+            public readonly List<Watched> Zones = new List<Watched>();
+        }
+
+        private readonly Dictionary<IntPtr, Background> background = new Dictionary<IntPtr, Background>();
+
+        public Reading Sweep(IntPtr hWnd, string name)
+        {
+            Background state;
+            using (Bitmap image = ScreenReader.CaptureWindow(hWnd))
+            {
+                if (image == null) return null;
+                if (!background.TryGetValue(hWnd, out state) || DateTime.UtcNow - state.LastFull > BackgroundFullEvery)
+                {
+                    state = new Background { LastFull = DateTime.UtcNow };
+                    background[hWnd] = state;
+                    Reading full = new Reading { At = DateTime.Now };
+                    List<ScreenReader.Zone> found = new List<ScreenReader.Zone>();
+                    ScreenReader.ReadFull(full, image, name, found, null);
+                    foreach (ScreenReader.Zone zone in found)
+                    {
+                        if (zone.Kind != "chat" && zone.Kind != "xp") continue;
+                        using (Bitmap part = image.Clone(zone.Rect, image.PixelFormat))
+                        {
+                            byte[] signature = ScreenReader.Signature(part);
+                            state.Zones.Add(new Watched { Zone = zone, Read = signature, Previous = signature });
+                        }
+                    }
+                    return full;
+                }
+
+                Reading reading = null;
+                foreach (Watched watched in state.Zones)
+                {
+                    Rectangle rect = Rectangle.Intersect(watched.Zone.Rect, new Rectangle(0, 0, image.Width, image.Height));
+                    if (rect.Width < 20 || rect.Height < 10) continue;
+                    using (Bitmap part = image.Clone(rect, image.PixelFormat))
+                    {
+                        byte[] signature = ScreenReader.Signature(part);
+                        if (!ScreenReader.Differs(signature, watched.Read)) continue;
+                        watched.Read = signature;
+                        if (reading == null) reading = new Reading { At = DateTime.Now };
+                        ScreenReader.ReadZone(reading, part, watched.Zone.Kind, name, null);
+                    }
+                }
+                return reading;
+            }
+        }
+
+        // Oublie les fenetres fermees.
+        public void Forget(ICollection<IntPtr> open)
+        {
+            List<IntPtr> gone = new List<IntPtr>();
+            foreach (IntPtr hWnd in background.Keys)
+            {
+                if (!open.Contains(hWnd)) gone.Add(hWnd);
+            }
+            foreach (IntPtr hWnd in gone) background.Remove(hWnd);
+        }
+
         private Reading WatchCorners(IntPtr hWnd, string name)
         {
             Reading reading = null;

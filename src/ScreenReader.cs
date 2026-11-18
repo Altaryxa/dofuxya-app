@@ -383,6 +383,12 @@ namespace DofuxyaManager
             return image;
         }
 
+        // Fenetre entiere, meme cachee derriere une autre (PrintWindow) ; null si l'image reste noire.
+        public static Bitmap CaptureWindow(IntPtr hWnd)
+        {
+            return Native.IsIconic(hWnd) ? null : Capture(hWnd);
+        }
+
         // Les quatre coins de la zone client (taille proportionnelle a la fenetre, 460 x 220 a 2560 px de large).
         public static Rectangle[] Corners(IntPtr hWnd)
         {
