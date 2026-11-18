@@ -65,6 +65,9 @@ namespace DofuxyaManager
             if (Vk == 4) return "Clic molette";
             if (Vk == 5) return "Souris latéral 1";
             if (Vk == 6) return "Souris latéral 2";
+            if (Vk == 0x10) return "Maj";
+            if (Vk == 0x11) return "Ctrl";
+            if (Vk == 0x12) return "Alt";
             string name;
             try
             {
@@ -423,6 +426,8 @@ namespace DofuxyaManager
         public bool AutoFollow;
         public bool AutoMaximizeRetro;
         public Hotkey Leader = new Hotkey();
+        // Touche a maintenir pendant le clic qui ouvre la roue des persos (aucune = roue desactivee).
+        public Hotkey WheelKey = new Hotkey();
         public string LeaderKey = "";
         public double MiniX = double.NaN;
         public double MiniY = double.NaN;
@@ -437,6 +442,7 @@ namespace DofuxyaManager
             Next.Vk = Native.VK_F3;
             Previous.Vk = Native.VK_F3;
             Previous.Mods = Native.MOD_SHIFT;
+            WheelKey.Vk = MouseHook.VK_MENU;
             try
             {
                 if (File.Exists(path))
@@ -457,6 +463,7 @@ namespace DofuxyaManager
                         else if (key == "suivi_tour") AutoFollow = value == "1";
                         else if (key == "agrandir_retro") AutoMaximizeRetro = value == "1";
                         else if (key == "principal_touche") Leader = Hotkey.Parse(value);
+                        else if (key == "roue_touche") WheelKey = Hotkey.Parse(value);
                         else if (key == "principal") LeaderKey = line.Substring(separator + 1);
                         else if (key == "mini_x") MiniX = ParseDouble(value);
                         else if (key == "mini_y") MiniY = ParseDouble(value);
@@ -501,6 +508,7 @@ namespace DofuxyaManager
                 lines.Add("suivi_tour=" + (AutoFollow ? "1" : "0"));
                 lines.Add("agrandir_retro=" + (AutoMaximizeRetro ? "1" : "0"));
                 lines.Add("principal_touche=" + Leader.Serialize());
+                lines.Add("roue_touche=" + WheelKey.Serialize());
                 lines.Add("principal=" + LeaderKey);
                 if (!double.IsNaN(MiniX) && !double.IsNaN(MiniY))
                 {

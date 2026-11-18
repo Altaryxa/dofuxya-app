@@ -40,6 +40,8 @@ namespace DofuxyaManager
             if (source != null) source.AddHook(WndProc);
 
             mouseHook.Handler = OnMouseButton;
+            mouseHook.LeftHandler = OnLeftButton;
+            mouseHook.RightHandler = OnRightButton;
             if (!mouseHook.Install())
             {
                 lastMessage = "Les boutons de souris ne peuvent pas servir de raccourcis sur ce poste "
@@ -495,7 +497,8 @@ namespace DofuxyaManager
             uint mods = MouseHook.CurrentMods();
             if (captureButton != null)
             {
-                if (Native.GetForegroundWindow() != handle) return false;
+                // La touche a maintenir de la roue est une touche du clavier, pas un bouton de souris.
+                if (captureHoldKey || Native.GetForegroundWindow() != handle) return false;
                 Hotkey captured = new Hotkey();
                 captured.Vk = button;
                 captured.Mods = mods;
@@ -576,15 +579,20 @@ namespace DofuxyaManager
         }
 
         // Saisie d'un raccourci : clic sur le champ, puis appui sur la touche ou le bouton de souris.
-        private void StartCapture(Button button, Action<Hotkey> apply)
+        // "holdKey" : saisie d'une touche seule a maintenir (Alt, Ctrl, Maj ou une autre touche).
+        private void StartCapture(Button button, Action<Hotkey> apply, bool holdKey = false)
         {
             CancelCapture();
             captureButton = button;
             captureApply = apply;
+            captureHoldKey = holdKey;
             SyncKeyboard(true);
             button.Content = "Appuie…";
-            lastMessage = "Saisie d'un raccourci : touche, combinaison ou bouton latéral de souris. "
-                + "Échap annule, Retour arrière ou Suppr l'efface.";
+            lastMessage = holdKey
+                ? "Saisie de la touche à maintenir : Alt, Ctrl, Maj ou une autre touche. "
+                    + "Échap annule, Retour arrière ou Suppr désactive la roue."
+                : "Saisie d'un raccourci : touche, combinaison ou bouton latéral de souris. "
+                    + "Échap annule, Retour arrière ou Suppr l'efface.";
             UpdateStatus();
         }
 
@@ -600,11 +608,13 @@ namespace DofuxyaManager
             Action<Hotkey> apply = captureApply;
             captureButton = null;
             captureApply = null;
+            captureHoldKey = false;
             if (result != null && apply != null) apply(result);
             lastMessage = "";
             if (nextButton != null) nextButton.Content = settings.Next.ToString();
             if (previousButton != null) previousButton.Content = settings.Previous.ToString();
             if (leaderHotkeyButton != null) leaderHotkeyButton.Content = settings.Leader.ToString();
+            if (wheelKeyButton != null) wheelKeyButton.Content = settings.WheelKey.ToString();
             Dispatcher.BeginInvoke(new Action(delegate { RefreshAll(true); }));
         }
 
@@ -613,6 +623,11 @@ namespace DofuxyaManager
             if (captureButton == null) return;
             e.Handled = true;
             Key key = e.Key == Key.System ? e.SystemKey : e.Key;
+            if (captureHoldKey)
+            {
+                CaptureHoldKey(key);
+                return;
+            }
             if (key == Key.LeftCtrl || key == Key.RightCtrl || key == Key.LeftAlt || key == Key.RightAlt
                 || key == Key.LeftShift || key == Key.RightShift || key == Key.LWin || key == Key.RWin
                 || key == Key.ImeProcessed || key == Key.DeadCharProcessed || key == Key.None)
@@ -634,6 +649,27 @@ namespace DofuxyaManager
                 if ((modifiers & ModifierKeys.Windows) != 0) hotkey.Mods |= Native.MOD_WIN;
                 hotkey.Vk = (uint)KeyInterop.VirtualKeyFromKey(key);
             }
+            FinishCapture(hotkey);
+        }
+
+        // Touche a maintenir : une touche seule, modificateurs compris (gauche et droite confondues).
+        private void CaptureHoldKey(Key key)
+        {
+            if (key == Key.ImeProcessed || key == Key.DeadCharProcessed || key == Key.None
+                || key == Key.LWin || key == Key.RWin)
+            {
+                return;
+            }
+            if (key == Key.Escape)
+            {
+                FinishCapture(null);
+                return;
+            }
+            Hotkey hotkey = new Hotkey();
+            if (key == Key.LeftAlt || key == Key.RightAlt) hotkey.Vk = MouseHook.VK_MENU;
+            else if (key == Key.LeftCtrl || key == Key.RightCtrl) hotkey.Vk = MouseHook.VK_CONTROL;
+            else if (key == Key.LeftShift || key == Key.RightShift) hotkey.Vk = MouseHook.VK_SHIFT;
+            else if (key != Key.Back && key != Key.Delete) hotkey.Vk = (uint)KeyInterop.VirtualKeyFromKey(key);
             FinishCapture(hotkey);
         }
     }

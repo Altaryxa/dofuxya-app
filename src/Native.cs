@@ -110,6 +110,34 @@ namespace DofuxyaManager
         [DllImport("user32.dll")]
         private static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO info);
 
+        [StructLayout(LayoutKind.Sequential)]
+        private struct POINT
+        {
+            public int X;
+            public int Y;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromPoint(POINT point, uint flags);
+
+        // Limites (pixels) de l'ecran qui contient un point.
+        public static RECT MonitorBoundsAt(int x, int y)
+        {
+            POINT point = new POINT();
+            point.X = x;
+            point.Y = y;
+            MONITORINFO info = new MONITORINFO();
+            info.Size = Marshal.SizeOf(typeof(MONITORINFO));
+            if (!GetMonitorInfo(MonitorFromPoint(point, 2), ref info))
+            {
+                info.Monitor.Left = x - 10000;
+                info.Monitor.Top = y - 10000;
+                info.Monitor.Right = x + 10000;
+                info.Monitor.Bottom = y + 10000;
+            }
+            return info.Monitor;
+        }
+
         private const int GWL_STYLE = -16;
         private const int WS_CAPTION = 0x00C00000;
 

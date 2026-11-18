@@ -252,6 +252,12 @@ namespace DofuxyaManager
             timer.Stop();
             positionTimer.Stop();
             SaveWindowPosition();
+            if (wheel != null)
+            {
+                wheel.CloseWheel();
+                wheel.Close();
+                wheel = null;
+            }
             mouseHook.Uninstall();
             foregroundWatcher.Uninstall();
             turnWatcher.StateChanged = null;
@@ -314,6 +320,8 @@ namespace DofuxyaManager
             {
                 text.AppendLine("  raccourci " + shortcut.Hotkey + " -> " + shortcut.Label);
             }
+            text.AppendLine("Roue des persos : " + (settings.WheelKey.IsEmpty ? "désactivée"
+                : settings.WheelKey + " + clic droit"));
             text.AppendLine("Icônes disponibles : " + string.Join(", ", icons.Keys.ToArray()));
             text.AppendLine();
             text.AppendLine("Fenêtres dont le processus ou le titre contient « dofus » :");

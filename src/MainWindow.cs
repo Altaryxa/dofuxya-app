@@ -63,6 +63,7 @@ namespace DofuxyaManager
         private Button manualButton;
         private Button leaderButton;
         private Button leaderHotkeyButton;
+        private Button wheelKeyButton;
         private ToggleButton miniVerticalToggle;
         private readonly DispatcherTimer timer = new DispatcherTimer();
 
@@ -81,6 +82,7 @@ namespace DofuxyaManager
 
         private Button captureButton;
         private Action<Hotkey> captureApply;
+        private bool captureHoldKey;
 
         private System.Windows.Forms.NotifyIcon tray;
         private bool quitting;

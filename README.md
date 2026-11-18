@@ -16,6 +16,8 @@ s'installent toutes seules au lancement.
 - Fenêtres renommées avec le nom du perso et l'icône de sa classe.
 - Raccourcis clavier ou souris : fenêtre suivante, précédente, perso principal, et un raccourci par perso.
   Ils marchent dans Dofus seulement, ou partout.
+- Roue des persos : dans Dofus, Alt maintenu + clic droit ouvre une roue au curseur ; un clic gauche sur un perso
+  passe sur sa fenêtre. La touche à maintenir se règle dans l'onglet Raccourcis.
 - « Grouper l'équipe » : amène le perso principal devant et copie les commandes `/invite` des autres persos,
   à coller dans le chat du jeu (Ctrl + V, Entrée).
 - Barre des tâches rangée dans l'ordre du tour.

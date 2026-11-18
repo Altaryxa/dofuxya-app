@@ -24,6 +24,7 @@ namespace DofuxyaManager
         public const string ColAccent = "#b6e23c";
         public const string ColAccentHover = "#c8ee5c";
         public const string ColAccentInk = "#17210a";
+        public const string ColWheelLine = "#16181b";
 
         private static ControlTemplate normalTemplate;
         private static ControlTemplate primaryTemplate;

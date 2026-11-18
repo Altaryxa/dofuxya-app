@@ -354,6 +354,21 @@ namespace DofuxyaManager
                 + "ou le clic molette. Échap annule, Retour arrière ou Suppr efface. "
                 + "Le raccourci propre à chaque personnage se règle dans l'onglet Équipe."));
 
+            page.Children.Add(MakeSectionTitle("Roue des persos"));
+            wheelKeyButton = Ui.MakeField(settings.WheelKey.ToString(), null);
+            wheelKeyButton.Click += delegate
+            {
+                StartCapture(wheelKeyButton, delegate(Hotkey hotkey)
+                {
+                    settings.WheelKey = hotkey;
+                    settings.Save();
+                }, true);
+            };
+            page.Children.Add(MakeSettingRow("Touche à maintenir + clic droit", wheelKeyButton));
+            page.Children.Add(MakeHint(
+                "Dans Dofus, maintiens cette touche et fais un clic droit : la roue s'ouvre au curseur. Un clic "
+                + "gauche sur un personnage passe sur sa fenêtre. Retour arrière ou Suppr désactive la roue."));
+
             page.Children.Add(MakeSectionTitle("Portée"));
             page.Children.Add(MakeOption("Raccourcis actifs seulement dans Dofus", settings.OnlyInDofus,
                 delegate(bool value)
