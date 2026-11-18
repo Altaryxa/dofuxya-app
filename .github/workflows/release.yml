@@ -1,0 +1,49 @@
+# Compile Dofuxya, fabrique l'installateur et publie la version sur GitHub a chaque tag vX.Y.Z.
+# La page https://dofuxya.com/tool et la mise a jour automatique de l'application suivent seules.
+name: Publier une version
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Numero de version (tire du tag)
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Tag invalide : ${{ github.ref_name }} (attendu vX.Y.Z)" }
+          Set-Content -Path numero-version.txt -Value $version -Encoding ascii
+          "VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Inno Setup
+        shell: pwsh
+        run: |
+          $found = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+                     "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe", "$env:ProgramFiles\Inno Setup 7\ISCC.exe") |
+                   Where-Object { Test-Path $_ }
+          if (-not $found) { choco install innosetup -y --no-progress }
+
+      - name: Compilation
+        shell: cmd
+        run: build.bat
+
+      - name: Installateur
+        shell: cmd
+        run: publier.bat
+
+      - name: Publication sur GitHub
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $setup = "publication\Dofuxya-Setup-$env:VERSION.exe"
+          if (-not (Test-Path $setup)) { throw "Installateur introuvable : $setup" }
+          gh release create "${{ github.ref_name }}" $setup --title "Dofuxya $env:VERSION" --generate-notes

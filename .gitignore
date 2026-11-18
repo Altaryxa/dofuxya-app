@@ -1,0 +1,8 @@
+# Archives d'origine, gardees en local
+*.zip
+
+# Produits de compilation
+Dofuxya.exe
+src/AppVersion.cs
+build-suivi.log
+publication/
