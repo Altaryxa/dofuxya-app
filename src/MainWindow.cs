@@ -679,17 +679,8 @@ namespace DofuxyaManager
             updateText = MakeHint("");
             page.Children.Add(updateText);
 
-            page.Children.Add(MakeSectionTitle("Outils"));
+            page.Children.Add(MakeSectionTitle("Aide"));
             WrapPanel tools = new WrapPanel();
-            Button iconsButton = Ui.MakeButton("Dossier d'icônes", false, OpenIconFolder);
-            iconsButton.Margin = new Thickness(0, 0, 8, 8);
-            tools.Children.Add(iconsButton);
-            Button diagnosticButton = Ui.MakeButton("Copier le diagnostic", false, CopyDiagnostic);
-            diagnosticButton.Margin = new Thickness(0, 0, 8, 8);
-            tools.Children.Add(diagnosticButton);
-            Button maximizeButton = Ui.MakeButton("Agrandir toutes les fenêtres Dofus", false, MaximizeAll);
-            maximizeButton.Margin = new Thickness(0, 0, 8, 8);
-            tools.Children.Add(maximizeButton);
             Button aboutButton = Ui.MakeButton("À propos", false, ShowAbout);
             aboutButton.Margin = new Thickness(0, 0, 8, 8);
             tools.Children.Add(aboutButton);
@@ -785,8 +776,7 @@ namespace DofuxyaManager
             if (icons.Keys.Count == 0)
             {
                 TextBlock hint = Ui.Text(
-                    "Aucune icône de classe pour l'instant : onglet Options, « Dossier d'icônes », puis dépose-y "
-                    + "une image par classe, nommée d'après la classe (Pandawa.ico, Iop.png…).",
+                    "Aucune icône de classe disponible pour l'instant.",
                     12, false, Ui.ColMuted);
                 hint.TextWrapping = TextWrapping.Wrap;
                 hint.MaxWidth = 560;
@@ -1291,21 +1281,6 @@ namespace DofuxyaManager
             }
         }
 
-        private void OpenIconFolder()
-        {
-            try
-            {
-                Process.Start(icons.Folder);
-                lastMessage = "Dépose une image par classe dans ce dossier (pandawa.png, iop.png…) : "
-                    + "elles sont prises en compte toutes seules.";
-            }
-            catch (Exception ex)
-            {
-                lastMessage = "Impossible d'ouvrir le dossier " + icons.Folder + " : " + ex.Message;
-            }
-            UpdateStatus();
-        }
-
         // ---------- Raccourcis ----------
 
         private void OnSourceInitialized(object sender, EventArgs e)
@@ -1476,21 +1451,6 @@ namespace DofuxyaManager
             // Un clignotement juste apres notre propre demande est son echec, pas un debut de tour.
             if (flashing == lastGoToHandle && (DateTime.UtcNow - lastGoTo).TotalMilliseconds < 700) return;
             Dispatcher.BeginInvoke(new Action(delegate { GoTo(window); }));
-        }
-
-        // Met toutes les fenetres Dofus ouvertes en plein ecran fenetre (agrandies), Dofus 3 comme Retro.
-        private void MaximizeAll()
-        {
-            int count = 0;
-            foreach (GameWindow window in windows)
-            {
-                if (Native.ShowWindow(window.Handle, 3)) count++;
-                else count++;
-            }
-            GameWindow back = FindWindow(lastActive);
-            if (back != null) Native.Activate(back.Handle);
-            lastMessage = count + " fenêtre(s) Dofus agrandie(s).";
-            UpdateStatus();
         }
 
         // Une notification Windows vient d'arriver. Si elle vient de Dofus et nomme un personnage
@@ -2083,14 +2043,17 @@ namespace DofuxyaManager
             Activate();
         }
 
+        // A propos. Le diagnostic (utile pour signaler un probleme) y est propose, plutot qu'en bouton.
         private void ShowAbout()
         {
-            MessageBox.Show(
+            MessageBoxResult answer = MessageBox.Show(
                 "Dofuxya " + Version + "\n\n"
                 + "Organise les fenêtres Dofus 3 et Dofus Retro : ordre d'initiative, titres, icônes, raccourcis.\n"
                 + "L'outil n'agit que sur les fenêtres : il n'envoie aucune touche ni aucun clic au jeu.\n\n"
-                + "Outil de fan, non affilié à Ankama. Dofus est une marque d'Ankama.",
-                "À propos de Dofuxya");
+                + "Outil de fan, non affilié à Ankama. Dofus est une marque d'Ankama.\n\n"
+                + "Un problème ? « Oui » copie un diagnostic à joindre à ton signalement.",
+                "À propos de Dofuxya", MessageBoxButton.YesNo, MessageBoxImage.Information, MessageBoxResult.No);
+            if (answer == MessageBoxResult.Yes) CopyDiagnostic();
         }
 
         private void OnClosing(object sender, System.ComponentModel.CancelEventArgs e)
