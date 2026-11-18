@@ -461,14 +461,28 @@ namespace DofuxyaManager
             return page;
         }
 
-        // Titre de section ; "info" ajoute un « i » dont l'infobulle explique la section.
+        // Titre de section : petites capitales vertes suivies d'un trait, pour se detacher des lignes
+        // de reglage. "info" ajoute un « i » dont l'infobulle explique la section.
         private static FrameworkElement MakeSectionTitle(string text, string info = null)
         {
-            StackPanel title = new StackPanel();
-            title.Orientation = Orientation.Horizontal;
-            title.Margin = new Thickness(0, 6, 0, 12);
-            title.Children.Add(Ui.Text(text, 16, true, Ui.ColText));
-            if (info != null) title.Children.Add(Ui.InfoBadge(info));
+            DockPanel title = new DockPanel();
+            title.Margin = new Thickness(0, 10, 0, 14);
+            TextBlock label = Ui.Text(text.ToUpper(), 12, true, Ui.ColAccent);
+            label.VerticalAlignment = VerticalAlignment.Center;
+            DockPanel.SetDock(label, Dock.Left);
+            title.Children.Add(label);
+            if (info != null)
+            {
+                FrameworkElement badge = Ui.InfoBadge(info);
+                DockPanel.SetDock(badge, Dock.Left);
+                title.Children.Add(badge);
+            }
+            Border line = new Border();
+            line.Height = 1;
+            line.Background = Ui.Paint(Ui.ColLine);
+            line.VerticalAlignment = VerticalAlignment.Center;
+            line.Margin = new Thickness(12, 1, 0, 0);
+            title.Children.Add(line);
             return title;
         }
 
@@ -488,7 +502,6 @@ namespace DofuxyaManager
             DockPanel.SetDock(field, Dock.Right);
             row.Children.Add(field);
             TextBlock text = Ui.Text(label, 14, false, Ui.ColText);
-            text.FontWeight = FontWeights.SemiBold;
             text.VerticalAlignment = VerticalAlignment.Center;
             row.Children.Add(text);
             return row;
