@@ -119,6 +119,43 @@ namespace DofuxyaManager
             return button;
         }
 
+        // Infobulle sombre, affichee au survol de l'element (et assez longtemps pour etre lue).
+        public static void SetTip(FrameworkElement element, string text)
+        {
+            TextBlock content = Text(text, 12.5, false, ColText);
+            content.TextWrapping = TextWrapping.Wrap;
+            content.MaxWidth = 340;
+            ToolTip tip = new ToolTip();
+            tip.Content = content;
+            tip.Background = Paint(ColDeep);
+            tip.BorderBrush = Paint(ColLine);
+            tip.Padding = new Thickness(10, 8, 10, 8);
+            element.ToolTip = tip;
+            ToolTipService.SetInitialShowDelay(element, 250);
+            ToolTipService.SetShowDuration(element, 60000);
+        }
+
+        // Petit « i » qui signale une infobulle.
+        public static Border InfoBadge(string text)
+        {
+            TextBlock letter = Text("i", 11, true, ColMuted);
+            letter.HorizontalAlignment = HorizontalAlignment.Center;
+            letter.VerticalAlignment = VerticalAlignment.Center;
+            Border badge = new Border();
+            badge.Width = 17;
+            badge.Height = 17;
+            badge.CornerRadius = new CornerRadius(9);
+            badge.BorderBrush = Paint(ColMuted);
+            badge.BorderThickness = new Thickness(1.4);
+            badge.Background = Brushes.Transparent;
+            badge.Margin = new Thickness(8, 0, 0, 0);
+            badge.VerticalAlignment = VerticalAlignment.Center;
+            badge.Cursor = Cursors.Help;
+            badge.Child = letter;
+            SetTip(badge, text);
+            return badge;
+        }
+
         // Case a cocher sombre, avec libelle facultatif.
         public static ToggleButton MakeCheck(string label, bool value, Action<bool> changed)
         {

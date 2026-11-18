@@ -5,7 +5,7 @@ using System.Windows.Interop;
 
 namespace DofuxyaManager
 {
-    // Roue des persos : touche maintenue (Alt par defaut) + clic droit dans une fenetre Dofus l'ouvre ;
+    // Roue des persos : touche maintenue (Maj par defaut) + clic droit dans une fenetre Dofus l'ouvre ;
     // un clic gauche sur une part passe sur la fenetre du perso.
     internal partial class MainWindow
     {

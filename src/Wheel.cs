@@ -10,7 +10,7 @@ using System.Windows.Threading;
 
 namespace DofuxyaManager
 {
-    // Roue des persos : s'ouvre au curseur (touche maintenue, Alt par defaut, + clic dans Dofus). Une part par perso,
+    // Roue des persos : s'ouvre au curseur (touche maintenue, Maj par defaut, + clic droit dans Dofus). Une part par perso,
     // dans l'ordre du tour ; un clic sur une part amene sa fenetre au premier plan.
     // La roue ne prend jamais le focus : le jeu reste la fenetre active jusqu'au choix.
     internal class PersoWheel : Window

@@ -51,7 +51,7 @@ namespace DofuxyaManager
             frame.CornerRadius = new CornerRadius(12);
             frame.Padding = new Thickness(6);
             frame.Cursor = Cursors.SizeAll;
-            frame.ToolTip = "Glisser pour déplacer · double-clic pour passer en vertical ou en horizontal.";
+            Ui.SetTip(frame, "Glisser pour déplacer · double-clic pour passer en vertical ou en horizontal.");
             frame.MouseLeftButtonDown += OnDrag;
 
             // Poignee de deplacement.
@@ -135,7 +135,7 @@ namespace DofuxyaManager
                 button.Height = 44;
                 button.Padding = new Thickness(0);
                 button.Focusable = false;
-                button.ToolTip = window.Name;
+                Ui.SetTip(button, window.Name);
 
                 ImageSource preview = icons.GetPreview(window.IconKey);
                 if (preview != null)

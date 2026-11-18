@@ -442,7 +442,7 @@ namespace DofuxyaManager
             Next.Vk = Native.VK_F3;
             Previous.Vk = Native.VK_F3;
             Previous.Mods = Native.MOD_SHIFT;
-            WheelKey.Vk = MouseHook.VK_MENU;
+            WheelKey.Vk = MouseHook.VK_SHIFT;
             try
             {
                 if (File.Exists(path))

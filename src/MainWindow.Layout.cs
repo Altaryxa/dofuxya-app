@@ -186,7 +186,7 @@ namespace DofuxyaManager
             button.Width = 44;
             button.Height = 40;
             button.Padding = new Thickness(0);
-            button.ToolTip = tip;
+            Ui.SetTip(button, tip);
             WindowChrome.SetIsHitTestVisibleInChrome(button, true);
             return button;
         }
@@ -263,12 +263,12 @@ namespace DofuxyaManager
                 ClearManualOrder();
                 RefreshAll(true);
             });
-            manualButton.ToolTip = "L'ordre a été fixé à la main. Ce bouton rétablit le tri par initiative.";
+            Ui.SetTip(manualButton, "L'ordre a été fixé à la main. Ce bouton rétablit le tri par initiative.");
             manualButton.Visibility = Visibility.Collapsed;
 
             Button groupButton = Ui.MakeButton("GROUPER L'ÉQUIPE", true, GroupTeam);
-            groupButton.ToolTip = "Amène le personnage principal devant et copie les commandes /invite des autres "
-                + "personnages détectés. Colle-les ensuite dans le chat (Ctrl + V, puis Entrée).";
+            Ui.SetTip(groupButton, "Amène le personnage principal devant et copie les commandes /invite des autres "
+                + "personnages détectés. Colle-les ensuite dans le chat (Ctrl + V, puis Entrée).");
             groupButton.Margin = new Thickness(8, 0, 0, 0);
             DockPanel.SetDock(groupButton, Dock.Right);
             toolbar.Children.Add(groupButton);
@@ -310,7 +310,10 @@ namespace DofuxyaManager
             page.Width = 560;
             page.HorizontalAlignment = HorizontalAlignment.Left;
             page.VerticalAlignment = VerticalAlignment.Top;
-            page.Children.Add(MakeSectionTitle("Navigation"));
+            page.Children.Add(MakeSectionTitle("Navigation",
+                "Clique sur un champ puis appuie sur une touche, une combinaison, un bouton latéral de la souris "
+                + "ou le clic molette. Échap annule, Retour arrière ou Suppr efface.\n\n"
+                + "Le raccourci propre à chaque personnage se règle dans l'onglet Équipe."));
 
             previousButton = Ui.MakeField(settings.Previous.ToString(), null);
             previousButton.Click += delegate
@@ -349,12 +352,9 @@ namespace DofuxyaManager
             leaderButton.Click += delegate { OpenLeaderMenu(); };
             page.Children.Add(MakeSettingRow("Personnage principal", leaderButton));
 
-            page.Children.Add(MakeHint(
-                "Clique sur un champ puis appuie sur une touche, une combinaison, un bouton latéral de la souris "
-                + "ou le clic molette. Échap annule, Retour arrière ou Suppr efface. "
-                + "Le raccourci propre à chaque personnage se règle dans l'onglet Équipe."));
-
-            page.Children.Add(MakeSectionTitle("Roue des persos"));
+            page.Children.Add(MakeSectionTitle("Roue des persos",
+                "Dans Dofus, maintiens cette touche et fais un clic droit : la roue s'ouvre au curseur. Un clic "
+                + "gauche sur un personnage passe sur sa fenêtre.\n\nRetour arrière ou Suppr désactive la roue."));
             wheelKeyButton = Ui.MakeField(settings.WheelKey.ToString(), null);
             wheelKeyButton.Click += delegate
             {
@@ -365,9 +365,6 @@ namespace DofuxyaManager
                 }, true);
             };
             page.Children.Add(MakeSettingRow("Touche à maintenir + clic droit", wheelKeyButton));
-            page.Children.Add(MakeHint(
-                "Dans Dofus, maintiens cette touche et fais un clic droit : la roue s'ouvre au curseur. Un clic "
-                + "gauche sur un personnage passe sur sa fenêtre. Retour arrière ou Suppr désactive la roue."));
 
             page.Children.Add(MakeSectionTitle("Portée"));
             page.Children.Add(MakeOption("Raccourcis actifs seulement dans Dofus", settings.OnlyInDofus,
@@ -377,9 +374,7 @@ namespace DofuxyaManager
                     settings.Save();
                     SyncKeyboard(true);
                     UpdateStatus();
-                }));
-            page.Children.Add(MakeHint(
-                "Coché, les touches restent libres dans tes autres logiciels. Décoché, elles marchent partout."));
+                }, "Coché, les touches restent libres dans tes autres logiciels. Décoché, elles marchent partout."));
             return page;
         }
 
@@ -421,10 +416,8 @@ namespace DofuxyaManager
                 settings.MiniVertical = value;
                 settings.Save();
                 SyncMiniBar();
-            });
+            }, "Un double-clic sur la poignée de la mini-barre change aussi son orientation.");
             page.Children.Add(miniVerticalToggle);
-            page.Children.Add(MakeHint(
-                "Un double-clic sur la poignée de la mini-barre change aussi son orientation."));
 
             page.Children.Add(MakeOption("Suivre le tour : amener devant le personnage qui doit jouer",
                 settings.AutoFollow, delegate(bool value)
@@ -433,12 +426,12 @@ namespace DofuxyaManager
                     settings.Save();
                     if (value) turnWatcher.Start();
                     else turnWatcher.Stop();
-                }));
-            page.Children.Add(MakeHint(
-                "Pour Dofus Retro, l'outil lit les notifications de Windows. Il faut : 1) dans le jeu, activer "
-                + "les notifications en arrière-plan ; 2) dans Windows, laisser les notifications du jeu "
-                + "activées ; 3) dans Paramètres > Confidentialité et sécurité > Notifications, autoriser les "
-                + "applications à accéder aux notifications. Ne s'applique que quand tu es déjà dans Dofus."));
+                }, "Pour Dofus Retro, l'outil lit les notifications de Windows. À régler une fois :\n"
+                    + "1. dans le jeu, activer les notifications en arrière-plan ;\n"
+                    + "2. dans Windows, laisser les notifications du jeu activées ;\n"
+                    + "3. dans Paramètres › Confidentialité et sécurité › Notifications, autoriser les "
+                    + "applications à accéder aux notifications.\n\n"
+                    + "Ne s'applique que quand tu es déjà dans Dofus."));
 
             page.Children.Add(MakeOption("Agrandir automatiquement les fenêtres Dofus Retro à leur ouverture",
                 settings.AutoMaximizeRetro, delegate(bool value)
@@ -468,11 +461,15 @@ namespace DofuxyaManager
             return page;
         }
 
-        private static TextBlock MakeSectionTitle(string text)
+        // Titre de section ; "info" ajoute un « i » dont l'infobulle explique la section.
+        private static FrameworkElement MakeSectionTitle(string text, string info = null)
         {
-            TextBlock block = Ui.Text(text, 16, true, Ui.ColText);
-            block.Margin = new Thickness(0, 6, 0, 12);
-            return block;
+            StackPanel title = new StackPanel();
+            title.Orientation = Orientation.Horizontal;
+            title.Margin = new Thickness(0, 6, 0, 12);
+            title.Children.Add(Ui.Text(text, 16, true, Ui.ColText));
+            if (info != null) title.Children.Add(Ui.InfoBadge(info));
+            return title;
         }
 
         private static TextBlock MakeHint(string text)
@@ -497,11 +494,24 @@ namespace DofuxyaManager
             return row;
         }
 
-        private static ToggleButton MakeOption(string label, bool value, Action<bool> changed)
+        // Case a cocher d'option ; "info" ajoute un « i » et la meme infobulle sur toute la ligne.
+        private static ToggleButton MakeOption(string label, bool value, Action<bool> changed, string info = null)
         {
             ToggleButton toggle = Ui.MakeCheck(label, value, changed);
             toggle.Margin = new Thickness(0, 0, 0, 12);
             toggle.HorizontalAlignment = HorizontalAlignment.Left;
+            if (info != null)
+            {
+                StackPanel content = new StackPanel();
+                content.Orientation = Orientation.Horizontal;
+                TextBlock text = new TextBlock();
+                text.Text = label;
+                text.VerticalAlignment = VerticalAlignment.Center;
+                content.Children.Add(text);
+                content.Children.Add(Ui.InfoBadge(info));
+                toggle.Content = content;
+                Ui.SetTip(toggle, info);
+            }
             return toggle;
         }
 
@@ -588,7 +598,7 @@ namespace DofuxyaManager
             if (named)
             {
                 rankBadge.Cursor = Cursors.SizeNS;
-                rankBadge.ToolTip = "Glisser pour changer l'ordre à la main.";
+                Ui.SetTip(rankBadge, "Glisser pour changer l'ordre à la main.");
                 rankBadge.MouseLeftButtonDown += delegate(object dragSender, MouseButtonEventArgs dragArgs)
                 {
                     BeginDrag(window, rankBadge, dragArgs);
@@ -612,7 +622,7 @@ namespace DofuxyaManager
             iconButton.Padding = new Thickness(0);
             iconButton.HorizontalAlignment = HorizontalAlignment.Left;
             iconButton.IsEnabled = named && icons.Keys.Count > 0;
-            iconButton.ToolTip = "Changer l'icône. « (auto) » utilise la classe du personnage.";
+            Ui.SetTip(iconButton, "Changer l'icône. « (auto) » utilise la classe du personnage.");
             ImageSource preview = icons.GetPreview(window.IconKey);
             if (preview != null)
             {
@@ -676,7 +686,7 @@ namespace DofuxyaManager
             direct.Padding = new Thickness(4, 8, 4, 8);
             direct.IsEnabled = named;
             direct.Margin = new Thickness(6, 0, 6, 0);
-            direct.ToolTip = "Raccourci qui amène directement cette fenêtre au premier plan.";
+            Ui.SetTip(direct, "Raccourci qui amène directement cette fenêtre au premier plan.");
             direct.Click += delegate
             {
                 StartCapture(direct, delegate(Hotkey hotkey)
@@ -695,7 +705,7 @@ namespace DofuxyaManager
                 UpdateStatus();
             });
             cycle.HorizontalAlignment = HorizontalAlignment.Center;
-            cycle.ToolTip = "Inclure dans le cycle suivante / précédente.";
+            Ui.SetTip(cycle, "Inclure dans le cycle suivante / précédente.");
             Grid.SetColumn(cycle, 5);
             grid.Children.Add(cycle);
 
