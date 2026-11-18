@@ -517,6 +517,10 @@ namespace DofuxyaManager
             return toggle;
         }
 
+        // Derniere colonne (Cycle) : la case y est calee a droite, a la meme distance du bord de la
+        // carte que le rang a gauche.
+        private const double CycleColumn = 44;
+
         private static void AddColumns(Grid grid)
         {
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(44) });
@@ -528,7 +532,7 @@ namespace DofuxyaManager
             grid.ColumnDefinitions.Add(nameColumn);
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(108) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(118) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(52) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(CycleColumn) });
         }
 
         private static void AddHeaderCell(Grid grid, int column, string text)
@@ -541,6 +545,14 @@ namespace DofuxyaManager
                 cell.Width = 32;
                 cell.TextAlignment = TextAlignment.Center;
                 cell.HorizontalAlignment = HorizontalAlignment.Left;
+            }
+            if (column == 5)
+            {
+                // Centre au-dessus de la case (22 px, calee a droite de la colonne).
+                cell.Width = CycleColumn;
+                cell.TextAlignment = TextAlignment.Center;
+                cell.HorizontalAlignment = HorizontalAlignment.Left;
+                cell.Margin = new Thickness(CycleColumn / 2 - 11, 0, 11 - CycleColumn / 2, 0);
             }
             Grid.SetColumn(cell, column);
             grid.Children.Add(cell);
@@ -713,9 +725,9 @@ namespace DofuxyaManager
                 store.Save(window);
                 UpdateStatus();
             });
-            cycle.HorizontalAlignment = HorizontalAlignment.Center;
-            // La case garde 8 px a droite pour un libelle (absent ici) : on compense pour la centrer.
-            cycle.Margin = new Thickness(8, 0, 0, 0);
+            cycle.HorizontalAlignment = HorizontalAlignment.Right;
+            // La case garde 8 px a droite pour un libelle (absent ici) : on les reprend.
+            cycle.Margin = new Thickness(0, 0, -8, 0);
             Ui.SetTip(cycle, "Inclure dans le cycle suivante / précédente.");
             Grid.SetColumn(cycle, 5);
             grid.Children.Add(cycle);
