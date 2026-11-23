@@ -187,10 +187,10 @@ namespace DofuxyaManager
                 }
             }
 
-            // Barre d'XP (« NIV. 152 » ou icone omega) et fiche Caracteristiques (« OMÉGA 152 | ENUTROF »).
+            // Barre d'XP (« NIV. 152 ») et fiche Caracteristiques (« OMÉGA 152 | ENUTROF »).
             foreach (Word word in words)
             {
-                if (word.Text == "NIV" || word.Text == "NIV." || word.Text == "n")
+                if (word.Text == "NIV" || word.Text == "NIV.")
                 {
                     Add(zones, "xp", new Rectangle((int)word.X - 20, (int)word.Y - 14, 200, (int)word.H + 28), bounds);
                 }
@@ -539,7 +539,7 @@ namespace DofuxyaManager
                 reading.Unlocked.Add(label + " (" + category.Text + ")");
             }
 
-            // Barre d'XP : « NIV. 152 » sans omega, sinon le niveau omega seul sur une pastille doree.
+            // Barre d'XP : « NIV. 152 » (sans omega ; l'omega y est une icone, pas lue).
             if (reading.Level == 0 && reading.Omega == 0)
             {
                 foreach (Word word in words)
@@ -550,16 +550,8 @@ namespace DofuxyaManager
                 }
             }
 
-            if (reading.Level == 0 && reading.Omega == 0)
-            {
-                foreach (Word word in words)
-                {
-                    if (!Regex.IsMatch(word.Text, @"^\d{1,4}$")) continue;
-                    if (GoldShare(image, word) < 0.25) continue;
-                    reading.Omega = int.Parse(word.Text);
-                }
-            }
-            if (reading.Level == 0 && reading.Omega == 0) reading.Omega = ZoomOmega(reading, words, image);
+            // L'omega n'est pris que la ou il est ecrit en toutes lettres (fiche, fenetre de passage,
+            // chat) : un nombre sur fond dore ou une icone mal lue donnaient des omegas inventes.
             if (reading.Omega > 0) reading.Level = 200;
 
             // Chat : lignes commencant par une heure (« [17:28] … », souvent mal lue : « [17:281 »).
@@ -573,11 +565,11 @@ namespace DofuxyaManager
         // Messages du chat sur la progression du perso de la fenetre :
         // « Succès déverrouillé : [Bord de la forêt maléfique] » (ceux des autres joueurs s'ecrivent
         // « X a déverrouillé le succès [Y] » et ne correspondent pas) ;
-        // « Osmalie vient de passer au niveau 92. » (« niveau Oméga N » suppose, pas encore vu).
+        // « Osmalie vient de passer au niveau 92. » ou « Osmalie vient de passer Oméga 45. ».
         private static readonly Regex OwnAchievement = new Regex(
             @"succ\S{0,2}s\s+d\S{0,2}verrouill\S{0,2}\s*:?\s*\[([^\]]+)", RegexOptions.IgnoreCase);
         private static readonly Regex LevelUp = new Regex(
-            @"(\S+)\s+vient\s+de\s+passer\s+au\s+niveau\s+(om\S{0,2}ga\s+)?(\d{1,4})", RegexOptions.IgnoreCase);
+            @"(\S+)\s+vient\s+de\s+passer\s+(?:au\s+niveau\s+)?(om\S{0,2}ga\s+)?(\d{1,4})", RegexOptions.IgnoreCase);
 
         // Quete terminee (format pas encore vu en jeu, a confirmer dans evenements.txt) : une ligne qui
         // parle d'une quete terminee, validee, accomplie ou achevee. Le nom est pris entre crochets,
@@ -638,40 +630,6 @@ namespace DofuxyaManager
             return key.ToString();
         }
 
-        // L'icone omega est lue « n » ; la pastille doree a sa droite porte le nombre. On relit cette
-        // zone agrandie trois fois quand la premiere lecture ne l'a pas donne.
-        private static int ZoomOmega(Reading reading, List<Word> words, Bitmap image)
-        {
-            foreach (Word icon in words)
-            {
-                if (icon.Text != "n" && icon.Text != "∩" && icon.Text != "Ω") continue;
-                Rectangle zone = Rectangle.Intersect(new Rectangle((int)icon.Right + 2, (int)icon.Y - 8, 110, (int)icon.H + 16),
-                    new Rectangle(0, 0, image.Width, image.Height));
-                if (zone.Width < 20) continue;
-                Color average = AverageColor(image, zone);
-                reading.Diagnostic += string.Format("zoom à droite de « {0} » ({1},{2}) : doré {3:0} %, couleur moyenne {4},{5},{6}",
-                    icon.Text, (int)icon.X, (int)icon.Y, GoldShare(image, zone) * 100, average.R, average.G, average.B);
-                using (Bitmap zoom = new Bitmap(zone.Width * 3, zone.Height * 3, PixelFormat.Format32bppArgb))
-                {
-                    using (Graphics graphics = Graphics.FromImage(zoom))
-                    {
-                        graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                        graphics.DrawImage(image, new Rectangle(0, 0, zoom.Width, zoom.Height), zone, GraphicsUnit.Pixel);
-                    }
-                    List<Word> found;
-                    List<string> ignored;
-                    Recognize(zoom, out found, out ignored);
-                    reading.Diagnostic += ", lu « " + string.Join(" ", ignored.ToArray()) + " » ; ";
-                    foreach (Word word in found)
-                    {
-                        string digits = Regex.Replace(word.Text, @"\D", "");
-                        if (digits.Length >= 1 && digits.Length <= 4) return int.Parse(digits);
-                    }
-                }
-            }
-            return 0;
-        }
-
         // « SUCCÈS » en capitales suivi de « DÉVERROUILLÉ » sur la meme ligne (notification du jeu).
         private static bool IsToastAnchor(List<Word> words, Word anchor)
         {
@@ -729,48 +687,6 @@ namespace DofuxyaManager
                 }
             }
             return result.ToString();
-        }
-
-        // Part de pixels dores autour d'un mot (pastille omega).
-        private static double GoldShare(Bitmap image, Word word)
-        {
-            return GoldShare(image, new Rectangle((int)word.X - 6, (int)word.Y - 4, (int)word.W + 12, (int)word.H + 8));
-        }
-
-        private static double GoldShare(Bitmap image, Rectangle zone)
-        {
-            int gold = 0, total = 0;
-            int left = Math.Max(0, zone.Left), right = Math.Min(image.Width - 1, zone.Right);
-            int top = Math.Max(0, zone.Top), bottom = Math.Min(image.Height - 1, zone.Bottom);
-            for (int x = left; x <= right; x += 2)
-            {
-                for (int y = top; y <= bottom; y += 2)
-                {
-                    Color c = image.GetPixel(x, y);
-                    total++;
-                    if (c.R > 170 && c.G > 100 && c.G < 215 && c.B < 100 && c.R > c.G) gold++;
-                }
-            }
-            return total == 0 ? 0 : (double)gold / total;
-        }
-
-        private static Color AverageColor(Bitmap image, Rectangle zone)
-        {
-            long r = 0, g = 0, b = 0;
-            int count = 0;
-            for (int x = zone.Left; x < zone.Right; x += 2)
-            {
-                for (int y = zone.Top; y < zone.Bottom; y += 2)
-                {
-                    Color c = image.GetPixel(x, y);
-                    r += c.R;
-                    g += c.G;
-                    b += c.B;
-                    count++;
-                }
-            }
-            if (count == 0) return Color.Black;
-            return Color.FromArgb((int)(r / count), (int)(g / count), (int)(b / count));
         }
     }
 }
