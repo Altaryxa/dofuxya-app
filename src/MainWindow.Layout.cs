@@ -275,15 +275,6 @@ namespace DofuxyaManager
             manualButton.Margin = new Thickness(8, 0, 0, 0);
             DockPanel.SetDock(manualButton, Dock.Right);
             toolbar.Children.Add(manualButton);
-            if (settings.ScreenReading)
-            {
-                readButton = Ui.MakeButton("Relever", false, ReadScreens);
-                Ui.SetTip(readButton, "Lecture d'écran : lit tout de suite le niveau et l'oméga à l'écran de chaque "
-                    + "fenêtre Dofus. Le texte lu est noté dans releve-texte.txt.");
-                readButton.Margin = new Thickness(8, 0, 0, 0);
-                DockPanel.SetDock(readButton, Dock.Right);
-                toolbar.Children.Add(readButton);
-            }
             countText.FontSize = 14;
             countText.FontWeight = FontWeights.SemiBold;
             countText.Foreground = Ui.Paint(Ui.ColMuted);

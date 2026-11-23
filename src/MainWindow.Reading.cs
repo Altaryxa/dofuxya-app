@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
-using System.Windows.Controls;
 using System.Windows.Threading;
 
 namespace DofuxyaManager
@@ -11,10 +10,9 @@ namespace DofuxyaManager
     // reglages.txt). Elle ne lit que le niveau et l'omega, les succes debloques et les quetes terminees,
     // et envoie ce qui change au site, sans confirmation, au plus une fois par minute.
     // Journaux (aucune image) dans %AppData%\Dofuxya : evenements.txt (messages retenus),
-    // releve-texte.txt (dernier releve manuel), lecture-continue.txt (cout de la lecture continue).
+    // lecture-continue.txt (cout de la lecture continue).
     internal partial class MainWindow
     {
-        private Button readButton;
         private bool reading;
         private readonly DispatcherTimer autoTimer = new DispatcherTimer();
         // Lignes du chat deja vues, par fenetre : seules les nouvelles comptent.
@@ -205,56 +203,6 @@ namespace DofuxyaManager
             }
             DataLog.Append("evenements.txt", log.ToString());
             return log.Length > 0;
-        }
-
-        // ---------- Releve manuel (bouton « Relever ») ----------
-
-        private void ReadScreens()
-        {
-            if (reading) return;
-            List<GameWindow> targets = NamedWindows().FindAll(delegate(GameWindow w) { return !w.IsRetro; });
-            if (targets.Count == 0)
-            {
-                lastMessage = "Aucune fenêtre Dofus à relever.";
-                UpdateStatus();
-                return;
-            }
-            reading = true;
-            readButton.IsEnabled = false;
-            readButton.Content = "Relevé…";
-            ThreadPool.QueueUserWorkItem(delegate
-            {
-                StringBuilder log = new StringBuilder();
-                Dictionary<GameWindow, Reading> results = new Dictionary<GameWindow, Reading>();
-                DateTime start = DateTime.Now;
-                string error = null;
-                foreach (GameWindow window in targets)
-                {
-                    try
-                    {
-                        results[window] = ScreenReader.Read(window.Handle, window.Name, log);
-                    }
-                    catch (Exception ex)
-                    {
-                        error = ex.Message;
-                        break;
-                    }
-                }
-                double seconds = (DateTime.Now - start).TotalSeconds;
-                DataLog.Write("releve-texte.txt", log.ToString());
-                Dispatcher.BeginInvoke(new Action(delegate
-                {
-                    foreach (KeyValuePair<GameWindow, Reading> pair in results) Apply(pair.Key, pair.Value);
-                    reading = false;
-                    readButton.IsEnabled = true;
-                    readButton.Content = "Relever";
-                    lastMessage = error != null
-                        ? "Relevé impossible : " + error
-                        : results.Count + " fenêtre(s) relevée(s) en " + seconds.ToString("0.0") + " s.";
-                    RebuildRows();
-                    UpdateStatus();
-                }));
-            });
         }
 
         // ---------- Envoi au site ----------
