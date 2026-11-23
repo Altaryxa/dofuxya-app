@@ -37,30 +37,6 @@ namespace DofuxyaManager
             }
         }
 
-        // Client web avec delai maximal : sans reseau, l'outil ne doit pas rester bloque au lancement.
-        private class TimedWebClient : WebClient
-        {
-            private readonly int timeout;
-
-            public TimedWebClient(int timeout)
-            {
-                this.timeout = timeout;
-                Headers[HttpRequestHeader.UserAgent] = "Dofuxya/" + AppVersion.Number;
-            }
-
-            protected override WebRequest GetWebRequest(Uri address)
-            {
-                WebRequest request = base.GetWebRequest(address);
-                if (request != null)
-                {
-                    request.Timeout = timeout;
-                    HttpWebRequest http = request as HttpWebRequest;
-                    if (http != null) http.ReadWriteTimeout = timeout;
-                }
-                return request;
-            }
-        }
-
         // Verifie et telecharge. Renvoie le chemin de l'installateur pret a lancer, ou "" s'il n'y a
         // rien a installer. "progress" recoit des messages pour la fenetre d'attente.
         public static string Check(Action<string> progress)
@@ -83,21 +59,16 @@ namespace DofuxyaManager
 
         private static string CheckCore(Action<string> progress)
         {
-            ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072; // TLS 1.2
+            // Sans reseau, l'outil ne doit pas rester bloque au lancement : 6 secondes au plus.
             Dictionary<string, string> manifest = new Dictionary<string, string>();
-            using (TimedWebClient client = new TimedWebClient(6000))
+            string text = Http.GetString(ManifestUrl + "?t=" + DateTime.UtcNow.Ticks, 6000);
+            foreach (string rawLine in text.Split('\n'))
             {
-                client.Encoding = Encoding.UTF8;
-                client.Headers[HttpRequestHeader.CacheControl] = "no-cache";
-                string text = client.DownloadString(ManifestUrl + "?t=" + DateTime.UtcNow.Ticks);
-                foreach (string rawLine in text.Split('\n'))
-                {
-                    string line = rawLine.Trim();
-                    int separator = line.IndexOf('=');
-                    if (separator <= 0) continue;
-                    manifest[line.Substring(0, separator).Trim().ToLowerInvariant()] =
-                        line.Substring(separator + 1).Trim();
-                }
+                string line = rawLine.Trim();
+                int separator = line.IndexOf('=');
+                if (separator <= 0) continue;
+                manifest[line.Substring(0, separator).Trim().ToLowerInvariant()] =
+                    line.Substring(separator + 1).Trim();
             }
 
             string version;
@@ -133,10 +104,7 @@ namespace DofuxyaManager
             {
                 if (progress != null) progress("Téléchargement de la version " + version + "…");
                 string partial = target + ".part";
-                using (TimedWebClient client = new TimedWebClient(60000))
-                {
-                    client.DownloadFile(url, partial);
-                }
+                Http.DownloadFile(url, partial, 60000);
                 if (Sha256(partial) != hash)
                 {
                     TryDelete(partial);

@@ -18,7 +18,7 @@ using System.Windows.Threading;
 
 namespace DofuxyaManager
 {
-    // Interface : cadre de fenetre, en-tete, onglets et barre d etat. Chaque onglet a son fichier
+    // Interface : cadre de fenetre, en-tete, onglets et barre d'etat. Chaque onglet a son fichier
     // (MainWindow.TeamPage, .ShortcutsPage, .OptionsPage), la mini-barre aussi (.MiniBarSync).
     internal partial class MainWindow
     {

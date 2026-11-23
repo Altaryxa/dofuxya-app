@@ -185,11 +185,7 @@ namespace DofuxyaManager
         private static Dictionary<string, object> Send(string method, string site, string path, string token,
             Dictionary<string, object> body)
         {
-            ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072; // TLS 1.2
-            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(site + path);
-            request.Method = method;
-            request.UserAgent = "Dofuxya/" + AppVersion.Number;
-            request.Timeout = 15000;
+            HttpWebRequest request = Http.Create(site + path, method, 15000);
             if (token != null) request.Headers[HttpRequestHeader.Authorization] = "Bearer " + token;
             if (body != null)
             {
