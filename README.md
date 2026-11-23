@@ -25,8 +25,8 @@ s'installent toutes seules au lancement.
 - Dofus Retro : suivi du tour et agrandissement automatique des fenêtres.
 - La croix masque la fenêtre : l'outil reste actif dans la zone de notification. Lancement avec Windows en option.
 - Liaison facultative à ton compte dofuxya.com (onglet Options) : chaque fenêtre est reliée à ton personnage du
-  même nom, son niveau s'affiche et un clic sur son nom ouvre sa fiche sur le site. Chaque jour, une bulle rappelle
-  l'Almanax (offrande, bonus, personnages qui ne l'ont pas fait) ; ce rappel se désactive.
+  même nom, affiché en vert : un clic dessus ouvre sa fiche sur le site. En option, une bulle rappelle chaque jour
+  l'Almanax (offrande, bonus, personnages qui ne l'ont pas fait).
 
 ## Suivi du tour sur Retro
 

@@ -366,8 +366,6 @@ namespace DofuxyaManager
                             if (item.TryGetValue("quests", out list)) MarkSent(sentQuests, name, list);
                         }
                         lastMessage = SendSummary(answer);
-                        // Les niveaux du site ont pu changer.
-                        RefreshSite(false);
                     }
                     UpdateStatus();
                 }));

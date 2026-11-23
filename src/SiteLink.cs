@@ -105,8 +105,6 @@ namespace DofuxyaManager
                     Id = Text(raw, "id"),
                     Game = Text(raw, "game") == "retro" ? Scanner.Retro : Scanner.Dofus3,
                     Name = Text(raw, "name"),
-                    Level = Number(raw, "level"),
-                    Omega = Number(raw, "omega"),
                 });
             }
             return result;
@@ -267,15 +265,6 @@ namespace DofuxyaManager
         public string Id = "";
         public string Game = "";
         public string Name = "";
-        public int Level;
-        public int Omega;
-
-        // « Niv. 200 · Ω 152 », « Niv. 152 », ou vide.
-        public string LevelText()
-        {
-            if (Omega > 0) return "Niv. 200 · Ω " + Omega;
-            return Level > 0 ? "Niv. " + Level : "";
-        }
     }
 
     // Almanax du jour : offrande, bonus et persos Dofus du compte qui ne l'ont pas valide.

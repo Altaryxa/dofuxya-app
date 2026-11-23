@@ -9,8 +9,8 @@ using System.Windows.Threading;
 namespace DofuxyaManager
 {
     // Liaison avec le compte dofuxya.com (F-50), pour tous les joueurs et facultative : l'outil marche
-    // pareil sans. Une fois lie, il lit les persos du compte (niveau, omega, lien vers la fiche) et
-    // rappelle chaque jour l'Almanax aux persos qui ne l'ont pas fait (rappel desactivable).
+    // pareil sans. Une fois lie, il lit les persos du compte (nom en vert, lien vers la fiche) et
+    // peut rappeler chaque jour l'Almanax aux persos qui ne l'ont pas fait (option, desactivee par defaut).
     internal partial class MainWindow
     {
         // Persos du compte lie, par jeu et nom (« Dofus 3\tKeax », sans tenir compte des majuscules).
@@ -36,7 +36,7 @@ namespace DofuxyaManager
                 };
                 tray.BalloonTipClosed += delegate { balloonAction = null; };
             }
-            // Toutes les 10 minutes : niveaux du site et, au premier passage du jour, l'Almanax.
+            // Toutes les 10 minutes : persos du site et, au premier passage du jour, l'Almanax.
             siteTimer.Interval = TimeSpan.FromMinutes(10);
             siteTimer.Tick += delegate { RefreshSite(true); };
             siteTimer.Start();
@@ -102,7 +102,7 @@ namespace DofuxyaManager
             foreach (KeyValuePair<string, SiteCharacter> pair in next)
             {
                 SiteCharacter known;
-                if (!siteCharacters.TryGetValue(pair.Key, out known) || known.LevelText() != pair.Value.LevelText()) changed = true;
+                if (!siteCharacters.TryGetValue(pair.Key, out known) || known.Id != pair.Value.Id) changed = true;
             }
             siteCharacters = next;
             if (changed) RebuildRows();
@@ -165,7 +165,7 @@ namespace DofuxyaManager
         {
             page.Children.Add(MakeSectionTitle("Site dofuxya.com",
                 "Facultatif. Une fois l'outil lié à ton compte du site, chaque fenêtre est reliée à ton "
-                + "personnage du même nom : son niveau s'affiche dans l'onglet Équipe et un clic sur son nom "
+                + "personnage du même nom : son nom s'affiche en vert dans l'onglet Équipe et un clic dessus "
                 + "ouvre sa fiche. L'outil ne lit que la liste de tes personnages et l'Almanax du jour."));
             DockPanel row = new DockPanel();
             row.Margin = new Thickness(0, 0, 0, 12);

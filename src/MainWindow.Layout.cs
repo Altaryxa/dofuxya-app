@@ -704,7 +704,8 @@ namespace DofuxyaManager
             SiteCharacter siteCharacter = SiteCharacterOf(window);
             if (siteCharacter != null)
             {
-                // Perso du compte lie : un clic sur son nom ouvre sa fiche sur le site.
+                // Perso du compte lie : nom en vert, un clic dessus ouvre sa fiche sur le site.
+                nameText.Foreground = Ui.Paint(Ui.ColAccent);
                 nameText.Cursor = Cursors.Hand;
                 Ui.SetTip(nameText, "Ouvrir sa fiche sur le site.");
                 nameText.MouseEnter += delegate { nameText.TextDecorations = TextDecorations.Underline; };
@@ -712,10 +713,6 @@ namespace DofuxyaManager
                 nameText.MouseLeftButtonUp += delegate { OpenCharacterSheet(siteCharacter); };
             }
             string detail = window.ClassName.Length > 0 ? window.ClassName + " · " + window.Game : window.Game;
-            if (siteCharacter != null && window.LastReading == null && siteCharacter.LevelText().Length > 0)
-            {
-                detail += " · " + siteCharacter.LevelText();
-            }
             if (named && window.Key == settings.LeaderKey) detail += " · principal";
             names.Children.Add(Ui.Text(detail, 12, false, Ui.ColMuted));
             if (window.LastReading != null)

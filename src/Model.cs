@@ -509,7 +509,7 @@ namespace DofuxyaManager
         // Adresse du site (« site=http://localhost:3000 » pour les essais).
         public string SiteUrl = "https://dofuxya.com";
         // Rappel de l'Almanax du jour (outil lie au site) et dernier jour rappele (aaaa-mm-jj).
-        public bool AlmanaxReminder = true;
+        public bool AlmanaxReminder;
         public string AlmanaxSeen = "";
         public Hotkey Leader = new Hotkey();
         // Touche a maintenir pendant le clic qui ouvre la roue des persos (aucune = roue desactivee).
@@ -551,7 +551,7 @@ namespace DofuxyaManager
                         else if (key == "lecture_ecran") ScreenReading = value == "1";
                         else if (key == "releve_auto") AutoReading = value == "1";
                         else if (key == "site" && value.StartsWith("http")) SiteUrl = value.TrimEnd('/');
-                        else if (key == "rappel_almanax") AlmanaxReminder = value != "0";
+                        else if (key == "rappel_almanax") AlmanaxReminder = value == "1";
                         else if (key == "almanax_vu") AlmanaxSeen = value;
                         else if (key == "principal_touche") Leader = Hotkey.Parse(value);
                         else if (key == "roue_touche") WheelKey = Hotkey.Parse(value);
