@@ -35,6 +35,16 @@ jobs:
         shell: cmd
         run: build.bat
 
+      - name: Reconnaissance de texte en francais (Windows)
+        shell: pwsh
+        run: |
+          $ocr = Get-WindowsCapability -Online -Name "Language.OCR~~~fr-FR~0.0.1.0"
+          if ($ocr.State -ne "Installed") { Add-WindowsCapability -Online -Name "Language.OCR~~~fr-FR~0.0.1.0" | Out-Null }
+
+      - name: Tests de la lecture d'ecran
+        shell: pwsh
+        run: ./tests/verifier-lecture.ps1
+
       - name: Installateur
         shell: cmd
         run: publier.bat
