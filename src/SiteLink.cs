@@ -18,7 +18,6 @@ namespace DofuxyaManager
     internal static class SiteLink
     {
         private static readonly string KeyPath = Path.Combine(AppPaths.DataFolder, "site-cle.bin");
-        private static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
 
         public class SiteError : Exception
         {
@@ -195,7 +194,7 @@ namespace DofuxyaManager
             if (body != null)
             {
                 request.ContentType = "application/json; charset=utf-8";
-                byte[] payload = Encoding.UTF8.GetBytes(Json.Serialize(body));
+                byte[] payload = Encoding.UTF8.GetBytes(NewJson().Serialize(body));
                 using (Stream stream = request.GetRequestStream()) stream.Write(payload, 0, payload.Length);
             }
             try
@@ -220,6 +219,13 @@ namespace DofuxyaManager
             }
         }
 
+        // Un convertisseur par appel : les envois partent de plusieurs fils a la fois, et
+        // JavaScriptSerializer n'est pas garanti sur entre fils.
+        private static JavaScriptSerializer NewJson()
+        {
+            return new JavaScriptSerializer();
+        }
+
         private static Dictionary<string, object> Read(HttpWebResponse response)
         {
             using (StreamReader reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8))
@@ -227,7 +233,7 @@ namespace DofuxyaManager
                 string text = reader.ReadToEnd();
                 try
                 {
-                    return Json.Deserialize<Dictionary<string, object>>(text) ?? new Dictionary<string, object>();
+                    return NewJson().Deserialize<Dictionary<string, object>>(text) ?? new Dictionary<string, object>();
                 }
                 catch (Exception)
                 {
