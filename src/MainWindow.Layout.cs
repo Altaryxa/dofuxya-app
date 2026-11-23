@@ -715,16 +715,6 @@ namespace DofuxyaManager
             string detail = window.ClassName.Length > 0 ? window.ClassName + " · " + window.Game : window.Game;
             if (named && window.Key == settings.LeaderKey) detail += " · principal";
             names.Children.Add(Ui.Text(detail, 12, false, Ui.ColMuted));
-            if (window.LastReading != null)
-            {
-                TextBlock read = Ui.Text(window.LastReading.Summary(), 12, true, Ui.ColAccent);
-                read.Margin = new Thickness(0, 2, 0, 0);
-                List<string> tip = new List<string>();
-                if (window.LastReading.Note.Length > 0) tip.Add("Remarque : " + window.LastReading.Note);
-                foreach (string line in window.LastReading.Events) tip.Add(line);
-                if (tip.Count > 0) Ui.SetTip(read, string.Join("\n", tip.ToArray()));
-                names.Children.Add(read);
-            }
             Grid.SetColumn(names, 2);
             grid.Children.Add(names);
 
