@@ -24,6 +24,9 @@ s'installent toutes seules au lancement.
 - Mini-barre flottante, horizontale ou verticale.
 - Dofus Retro : suivi du tour et agrandissement automatique des fenêtres.
 - La croix masque la fenêtre : l'outil reste actif dans la zone de notification. Lancement avec Windows en option.
+- Liaison facultative à ton compte dofuxya.com (onglet Options) : chaque fenêtre est reliée à ton personnage du
+  même nom, son niveau s'affiche et un clic sur son nom ouvre sa fiche sur le site. Chaque jour, une bulle rappelle
+  l'Almanax (offrande, bonus, personnages qui ne l'ont pas fait) ; ce rappel se désactive.
 
 ## Suivi du tour sur Retro
 
@@ -37,7 +40,8 @@ L'outil lit les notifications de Windows. À régler une fois :
 ## Données
 
 Réglages et initiatives sont enregistrés sur le PC, dans `%AppData%\Dofuxya` (avec `erreurs.txt` en cas de
-plantage). Un problème ? Options › À propos copie un diagnostic à joindre à ton signalement.
+plantage). Liée au site, l'outil ne lit que la liste de tes personnages et l'Almanax du jour ; sa clé est chiffrée
+par Windows pour ta session, et tu peux retirer l'accès depuis ton profil sur le site. Un problème ? Options › À propos copie un diagnostic à joindre à ton signalement.
 
 ## Développement
 

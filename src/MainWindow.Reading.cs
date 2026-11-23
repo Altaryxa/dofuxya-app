@@ -1,42 +1,39 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
 using System.Text;
 using System.Threading;
-using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 
 namespace DofuxyaManager
 {
-    // Prototype de lecture d'ecran et d'envoi au site (F-50) : boutons « Relever » et « Envoyer au
-    // site » de l'onglet Equipe, visibles seulement avec « lecture_ecran=1 » dans reglages.txt.
-    // Le texte lu est ecrit dans %AppData%\Dofuxya\releve-texte.txt pour regler la lecture (aucune image).
+    // Lecture d'ecran (F-50, reservee a l'auteur : visible seulement avec « lecture_ecran=1 » dans
+    // reglages.txt). Elle ne lit que le niveau et l'omega, les succes debloques et les quetes terminees,
+    // et envoie ce qui change au site, sans confirmation, au plus une fois par minute.
+    // Journaux (aucune image) dans %AppData%\Dofuxya : evenements.txt (messages retenus),
+    // releve-texte.txt (dernier releve manuel), lecture-continue.txt (cout de la lecture continue).
     internal partial class MainWindow
     {
         private Button readButton;
-        private Button siteButton;
         private bool reading;
-        private bool siteBusy;
-        private readonly System.Windows.Threading.DispatcherTimer autoTimer = new System.Windows.Threading.DispatcherTimer();
+        private readonly DispatcherTimer autoTimer = new DispatcherTimer();
         // Lignes du chat deja vues, par fenetre : seules les nouvelles comptent.
         private readonly Dictionary<IntPtr, HashSet<string>> seenChat = new Dictionary<IntPtr, HashSet<string>>();
-
-        // ---------- Releve continu ----------
-
         private readonly ScreenWatcher watcher = new ScreenWatcher();
-        // Textes du panneau des succes deja notes dans succes-vus.txt (par perso).
-        private readonly HashSet<string> seenPanel = new HashSet<string>();
+
         // Passage dans les fenetres en arriere-plan : une toutes les 6 secondes, chacune a son tour.
         private const int SweepEvery = 6;
         private int sweepTick;
         private int sweepIndex;
+
         // Mesure du cout de la lecture continue, ecrite chaque minute dans lecture-continue.txt.
         private int statTicks;
         private int statReads;
         private double statMs;
         private double statMaxMs;
         private DateTime statStart = DateTime.UtcNow;
+
+        // ---------- Lecture continue ----------
 
         private void StartAutoReading()
         {
@@ -46,7 +43,7 @@ namespace DofuxyaManager
         }
 
         // Chaque seconde : verification legere de la fenetre Dofus au premier plan (voir ScreenWatcher),
-        // en priorite basse pour laisser la main au jeu.
+        // et d'une fenetre en arriere-plan de temps en temps, en priorite basse pour laisser la main au jeu.
         private void AutoRead()
         {
             if (!settings.ScreenReading || !settings.AutoReading) return;
@@ -65,12 +62,11 @@ namespace DofuxyaManager
             {
                 Reading result = null;
                 Reading otherResult = null;
-                List<string> panelLines = new List<string>();
                 Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
                 System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
                 try
                 {
-                    if (handle != IntPtr.Zero) result = watcher.Tick(handle, name, panelLines);
+                    if (handle != IntPtr.Zero) result = watcher.Tick(handle, name);
                     if (otherHandle != IntPtr.Zero) otherResult = watcher.Sweep(otherHandle, otherName);
                 }
                 catch (Exception)
@@ -85,10 +81,8 @@ namespace DofuxyaManager
                 {
                     reading = false;
                     NoteCost(ms, result != null || otherResult != null);
-                    NotePanelLines(name, panelLines);
                     bool changed = Apply(window, result) | Apply(other, otherResult);
                     if (changed) RebuildRows();
-                    UpdateSiteButton();
                     UpdateStatus();
                 }));
             });
@@ -134,17 +128,10 @@ namespace DofuxyaManager
             if (read) statReads++;
             double elapsed = (DateTime.UtcNow - statStart).TotalMilliseconds;
             if (elapsed < 60000) return;
-            string line = DateTime.Now.ToString("HH:mm") + " : " + statTicks + " vérifications, "
+            DataLog.Append("lecture-continue.txt", DateTime.Now.ToString("HH:mm") + " : " + statTicks + " vérifications, "
                 + (statMs / statTicks).ToString("0") + " ms en moyenne (au plus " + statMaxMs.ToString("0") + " ms), "
                 + statReads + " avec lecture de texte, soit " + (statMs * 100 / elapsed).ToString("0.0")
-                + " % d'un cœur du processeur" + Environment.NewLine;
-            try
-            {
-                File.AppendAllText(Path.Combine(AppPaths.DataFolder, "lecture-continue.txt"), line, Encoding.UTF8);
-            }
-            catch (Exception)
-            {
-            }
+                + " % d'un cœur du processeur" + Environment.NewLine);
             statStart = DateTime.UtcNow;
             statTicks = 0;
             statReads = 0;
@@ -152,28 +139,9 @@ namespace DofuxyaManager
             statMaxMs = 0;
         }
 
-        // Textes lus dans le panneau des succes : notes une fois dans succes-vus.txt (base du futur
-        // catalogue des succes).
-        private void NotePanelLines(string name, List<string> lines)
-        {
-            StringBuilder text = new StringBuilder();
-            foreach (string line in lines)
-            {
-                if (line.Length < 3 || !seenPanel.Add(name + "\t" + line)) continue;
-                text.AppendLine(name + "\t" + line);
-            }
-            if (text.Length == 0) return;
-            try
-            {
-                File.AppendAllText(Path.Combine(AppPaths.DataFolder, "succes-vus.txt"), text.ToString(), Encoding.UTF8);
-            }
-            catch (Exception)
-            {
-            }
-        }
-
-        // Nouvelles lignes du chat qui parlent de succes, de niveau ou d'omega : notees dans
-        // evenements.txt (pour apprendre leur format) et affichees dans la barre d'etat.
+        // Nouvelles lignes du chat sur la progression du perso de la fenetre : succes debloque, quete
+        // terminee, niveau ou omega. Notees dans evenements.txt (les lignes qui en parlent sans etre
+        // reconnues aussi, pour apprendre leur format) et affichees dans la barre d'etat.
         private bool NoteChatEvents(GameWindow window, Reading result)
         {
             if (result.ChatLines.Count == 0) return false;
@@ -189,13 +157,13 @@ namespace DofuxyaManager
                 if (ScreenReader.IsProgressLine(line)) fresh.Add(line);
             }
             if (fresh.Count == 0) return false;
-            StringBuilder text = new StringBuilder();
+            StringBuilder log = new StringBuilder();
             string message = null;
             foreach (string line in fresh)
             {
-                // Le perso de la fenetre debloque un succes ou passe un niveau : on le retient.
                 string kind = "chat";
                 string achievement = ScreenReader.UnlockedAchievement(line);
+                string quest = ScreenReader.CompletedQuest(line);
                 int value;
                 bool omega;
                 if (achievement != null)
@@ -204,6 +172,12 @@ namespace DofuxyaManager
                     if (!window.AddUnlocked(achievement)) { result.Events.Add(line); continue; }
                     message = window.Name + " : succès « " + achievement + " » débloqué.";
                 }
+                else if (quest != null)
+                {
+                    kind = "quête";
+                    if (!window.AddQuest(quest)) { result.Events.Add(line); continue; }
+                    message = window.Name + " : quête « " + quest + " » terminée.";
+                }
                 else if (ScreenReader.LevelUpOf(line, window.Name, out value, out omega))
                 {
                     kind = omega ? "oméga" : "niveau";
@@ -211,59 +185,43 @@ namespace DofuxyaManager
                     if (!omega && value <= 200 && value > result.Level) result.Level = value;
                     message = window.Name + " : " + (omega ? "oméga " : "niveau ") + value + ".";
                 }
-                text.AppendLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [" + window.Name + "] [" + kind + "] " + line);
+                log.Append(DataLog.Line(window.Name, kind, line));
                 result.Events.Add(line);
             }
-            try
-            {
-                File.AppendAllText(Path.Combine(AppPaths.DataFolder, "evenements.txt"), text.ToString(), Encoding.UTF8);
-            }
-            catch (Exception)
-            {
-            }
+            DataLog.Append("evenements.txt", log.ToString());
             lastMessage = message ?? window.Name + " : " + fresh[fresh.Count - 1];
             return true;
         }
 
-        // Succes lus dans la fenetre des recompenses a recuperer : retenus pour le perso et notes une fois.
+        // Succes lus dans la notification ou la fenetre des recompenses : retenus pour le perso, notes une fois.
         private bool NoteUnlocked(GameWindow window, Reading result)
         {
-            StringBuilder text = new StringBuilder();
+            StringBuilder log = new StringBuilder();
             foreach (string unlocked in result.Unlocked)
             {
                 if (!window.AddUnlocked(unlocked)) continue;
-                text.AppendLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [" + window.Name + "] [succès] " + unlocked);
+                log.Append(DataLog.Line(window.Name, "succès", unlocked));
                 lastMessage = window.Name + " : succès « " + unlocked + " » débloqué.";
             }
-            if (text.Length == 0) return false;
-            try
-            {
-                File.AppendAllText(Path.Combine(AppPaths.DataFolder, "evenements.txt"), text.ToString(), Encoding.UTF8);
-            }
-            catch (Exception)
-            {
-            }
-            return true;
+            DataLog.Append("evenements.txt", log.ToString());
+            return log.Length > 0;
         }
 
-        // ---------- Releve ----------
+        // ---------- Releve manuel (bouton « Relever ») ----------
 
         private void ReadScreens()
         {
             if (reading) return;
-            List<GameWindow> targets = new List<GameWindow>();
-            foreach (GameWindow window in NamedWindows())
-            {
-                if (!window.IsRetro) targets.Add(window);
-            }
+            List<GameWindow> targets = NamedWindows().FindAll(delegate(GameWindow w) { return !w.IsRetro; });
             if (targets.Count == 0)
             {
-                lastMessage = "Aucune fenêtre Dofus 3 à relever.";
+                lastMessage = "Aucune fenêtre Dofus à relever.";
                 UpdateStatus();
                 return;
             }
             reading = true;
-            SetBusy(readButton, "Relevé…");
+            readButton.IsEnabled = false;
+            readButton.Content = "Relevé…";
             ThreadPool.QueueUserWorkItem(delegate
             {
                 StringBuilder log = new StringBuilder();
@@ -283,99 +241,65 @@ namespace DofuxyaManager
                     }
                 }
                 double seconds = (DateTime.Now - start).TotalSeconds;
-                try
-                {
-                    File.WriteAllText(Path.Combine(AppPaths.DataFolder, "releve-texte.txt"), log.ToString(), Encoding.UTF8);
-                }
-                catch (Exception)
-                {
-                }
+                DataLog.Write("releve-texte.txt", log.ToString());
                 Dispatcher.BeginInvoke(new Action(delegate
                 {
-                    foreach (KeyValuePair<GameWindow, Reading> pair in results) pair.Key.LastReading = pair.Value;
+                    foreach (KeyValuePair<GameWindow, Reading> pair in results) Apply(pair.Key, pair.Value);
                     reading = false;
+                    readButton.IsEnabled = true;
+                    readButton.Content = "Relever";
                     lastMessage = error != null
                         ? "Relevé impossible : " + error
                         : results.Count + " fenêtre(s) relevée(s) en " + seconds.ToString("0.0") + " s.";
                     RebuildRows();
-                    UpdateSiteButton();
                     UpdateStatus();
                 }));
             });
         }
 
-        // ---------- Site (F-50) ----------
-        // Envoi automatique, sans confirmation : ce qui a change depuis le dernier envoi (niveau, omega,
-        // total de succes, succes debloques) part au plus une fois par minute. Le bouton « Envoyer au
-        // site » envoie tout de suite.
+        // ---------- Envoi au site ----------
+        // Ce qui a change depuis le dernier envoi (niveau, omega, succes debloques, quetes terminees)
+        // part tout seul, au plus une fois par minute, si l'outil est lie au site.
 
         private const int SendEvery = 60;
         private int sendTick;
+        private bool sending;
         private readonly Dictionary<string, string> sentValues = new Dictionary<string, string>();
         private readonly Dictionary<string, HashSet<string>> sentUnlocked = new Dictionary<string, HashSet<string>>();
-
-        private void UpdateSiteButton()
-        {
-            if (readButton != null) readButton.Content = "Relever";
-            if (readButton != null) readButton.IsEnabled = !reading;
-            if (siteButton == null || siteBusy) return;
-            siteButton.IsEnabled = true;
-            siteButton.Content = SiteLink.IsLinked ? "Envoyer au site" : "Lier au site";
-        }
-
-        private void OnSiteButton()
-        {
-            if (siteBusy) return;
-            if (!SiteLink.IsLinked) LinkSite();
-            else SendToSite(true);
-        }
+        private readonly Dictionary<string, HashSet<string>> sentQuests = new Dictionary<string, HashSet<string>>();
 
         // Appele chaque seconde par la lecture continue.
         private void AutoSendTick()
         {
             if (++sendTick < SendEvery) return;
             sendTick = 0;
-            if (SiteLink.IsLinked && !siteBusy) SendToSite(false);
+            if (!sending && SiteLink.IsLinked) SendToSite();
         }
 
-        private void LinkSite()
+        // Noms pas encore envoyes pour ce perso (50 au plus).
+        private static List<string> Unsent(IEnumerable<string> names, Dictionary<string, HashSet<string>> sent, string character)
         {
-            siteBusy = true;
-            SetBusy(siteButton, "En attente…");
-            lastMessage = "Autorise l'appareil dans la page qui vient de s'ouvrir dans ton navigateur.";
-            UpdateStatus();
-            string site = settings.SiteUrl;
-            ThreadPool.QueueUserWorkItem(delegate
+            HashSet<string> done;
+            if (!sent.TryGetValue(character, out done)) done = new HashSet<string>();
+            List<string> fresh = new List<string>();
+            foreach (string name in names)
             {
-                string result;
-                try
-                {
-                    result = SiteLink.Link(site, delegate { return false; })
-                        ? "Outil lié à ton compte du site : les relevés y seront envoyés automatiquement."
-                        : "Liaison abandonnée : rien n'a été autorisé dans les 10 minutes.";
-                }
-                catch (Exception ex)
-                {
-                    result = "Liaison impossible : " + ex.Message;
-                }
-                Dispatcher.BeginInvoke(new Action(delegate
-                {
-                    siteBusy = false;
-                    lastMessage = result;
-                    UpdateSiteButton();
-                    UpdateStatus();
-                }));
-            });
+                if (!done.Contains(name) && !fresh.Contains(name) && fresh.Count < 50) fresh.Add(name);
+            }
+            return fresh;
         }
 
-        private static string BaseName(string unlocked)
+        private static void MarkSent(Dictionary<string, HashSet<string>> sent, string character, object names)
         {
-            int paren = unlocked.LastIndexOf(" (");
-            return paren > 0 ? unlocked.Substring(0, paren) : unlocked;
+            List<string> list = names as List<string>;
+            if (list == null) return;
+            HashSet<string> done;
+            if (!sent.TryGetValue(character, out done)) sent[character] = done = new HashSet<string>();
+            foreach (string name in list) done.Add(name);
         }
 
-        // Releves a envoyer : seulement ce qui a change depuis le dernier envoi (tout, si « all »).
-        private List<Dictionary<string, object>> CollectReadings(bool all)
+        // Releves a envoyer : seulement ce qui a change depuis le dernier envoi.
+        private List<Dictionary<string, object>> CollectReadings()
         {
             List<Dictionary<string, object>> readings = new List<Dictionary<string, object>>();
             foreach (GameWindow window in NamedWindows())
@@ -385,46 +309,31 @@ namespace DofuxyaManager
                 item["name"] = window.Name;
                 Reading r = window.LastReading;
                 string sent;
-                if (r != null && (all || !sentValues.TryGetValue(window.Name, out sent) || sent != r.Values()))
+                if (r != null && (!sentValues.TryGetValue(window.Name, out sent) || sent != r.Values()))
                 {
                     if (r.Level > 0) item["level"] = r.Level;
                     if (r.Omega > 0) item["omega"] = r.Omega;
-                    if (r.Success > 0 && !r.SuccessFromAccount) item["achievementPoints"] = r.Success;
                 }
-                HashSet<string> done;
-                if (!sentUnlocked.TryGetValue(window.Name, out done)) done = new HashSet<string>();
-                List<string> fresh = new List<string>();
-                foreach (string unlocked in window.Unlocked)
-                {
-                    string name = BaseName(unlocked);
-                    if (!done.Contains(name) && fresh.Count < 50) fresh.Add(name);
-                }
-                if (fresh.Count > 0) item["achievements"] = fresh;
+                List<string> achievements = Unsent(window.Unlocked.ConvertAll(GameWindow.BaseName), sentUnlocked, window.Name);
+                if (achievements.Count > 0) item["achievements"] = achievements;
+                List<string> quests = Unsent(window.Quests, sentQuests, window.Name);
+                if (quests.Count > 0) item["quests"] = quests;
                 if (item.Count > 1) readings.Add(item);
             }
             return readings;
         }
 
-        private void SendToSite(bool now)
+        private void SendToSite()
         {
-            List<Dictionary<string, object>> readings = CollectReadings(now);
-            if (readings.Count == 0)
-            {
-                if (now)
-                {
-                    lastMessage = "Rien de nouveau à envoyer au site.";
-                    UpdateStatus();
-                }
-                return;
-            }
+            List<Dictionary<string, object>> readings = CollectReadings();
+            if (readings.Count == 0) return;
             // Ce qui part maintenant, pour le marquer envoye si le site l'accepte.
             Dictionary<string, string> values = new Dictionary<string, string>();
             foreach (GameWindow window in NamedWindows())
             {
                 if (window.LastReading != null) values[window.Name] = window.LastReading.Values();
             }
-            siteBusy = true;
-            if (now) SetBusy(siteButton, "Envoi…");
+            sending = true;
             string site = settings.SiteUrl;
             ThreadPool.QueueUserWorkItem(delegate
             {
@@ -440,7 +349,7 @@ namespace DofuxyaManager
                 }
                 Dispatcher.BeginInvoke(new Action(delegate
                 {
-                    siteBusy = false;
+                    sending = false;
                     if (error != null)
                     {
                         lastMessage = "Envoi au site impossible : " + error;
@@ -453,42 +362,29 @@ namespace DofuxyaManager
                             string value;
                             if (values.TryGetValue(name, out value)) sentValues[name] = value;
                             object list;
-                            if (!item.TryGetValue("achievements", out list)) continue;
-                            HashSet<string> done;
-                            if (!sentUnlocked.TryGetValue(name, out done)) sentUnlocked[name] = done = new HashSet<string>();
-                            foreach (string achievement in (List<string>)list) done.Add(achievement);
+                            if (item.TryGetValue("achievements", out list)) MarkSent(sentUnlocked, name, list);
+                            if (item.TryGetValue("quests", out list)) MarkSent(sentQuests, name, list);
                         }
                         lastMessage = SendSummary(answer);
+                        // Les niveaux du site ont pu changer.
+                        RefreshSite(false);
                     }
-                    UpdateSiteButton();
                     UpdateStatus();
                 }));
             });
         }
 
-        // « Envoyé au site : 2 perso(s) mis à jour, 3 succès. Non reconnus : … »
+        // « Envoyé au site : 2 perso(s) mis à jour, 3 succès, 1 quête. Non reconnus : … »
         private static string SendSummary(Dictionary<string, object> answer)
         {
-            object updated, achievements, unknown;
-            int persos = answer.TryGetValue("updated", out updated) ? Convert.ToInt32(updated) : 0;
-            int added = answer.TryGetValue("achievements", out achievements) ? Convert.ToInt32(achievements) : 0;
-            string text = "Envoyé au site : " + persos + " perso(s) mis à jour, " + added + " succès validé(s).";
-            System.Collections.ArrayList names = answer.TryGetValue("unknown", out unknown)
-                ? unknown as System.Collections.ArrayList : null;
-            if (names != null && names.Count > 0)
-            {
-                List<string> list = new List<string>();
-                foreach (object name in names) list.Add(Convert.ToString(name));
-                text += " Succès non reconnus : " + string.Join(", ", list.ToArray()) + ".";
-            }
+            string text = "Envoyé au site : " + SiteLink.Number(answer, "updated") + " perso(s) mis à jour, "
+                + SiteLink.Number(answer, "achievements") + " succès et " + SiteLink.Number(answer, "quests")
+                + " quête(s) validé(s).";
+            List<string> unknown = SiteLink.Texts(answer, "unknown");
+            if (unknown.Count > 0) text += " Succès non reconnus : " + string.Join(", ", unknown.ToArray()) + ".";
+            List<string> unknownQuests = SiteLink.Texts(answer, "unknownQuests");
+            if (unknownQuests.Count > 0) text += " Quêtes non reconnues : " + string.Join(", ", unknownQuests.ToArray()) + ".";
             return text;
-        }
-
-        private static void SetBusy(Button button, string text)
-        {
-            if (button == null) return;
-            button.IsEnabled = false;
-            button.Content = text;
         }
     }
 }

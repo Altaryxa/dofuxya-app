@@ -278,16 +278,9 @@ namespace DofuxyaManager
             if (settings.ScreenReading)
             {
                 readButton = Ui.MakeButton("Relever", false, ReadScreens);
-                Ui.SetTip(readButton, "Prototype : lit niveau, oméga et total de succès à l'écran de chaque fenêtre "
-                    + "Dofus (panneau des succès ouvert sur « Personnage » pour le total). Rien n'est envoyé.");
+                Ui.SetTip(readButton, "Lecture d'écran : lit tout de suite le niveau et l'oméga à l'écran de chaque "
+                    + "fenêtre Dofus. Le texte lu est noté dans releve-texte.txt.");
                 readButton.Margin = new Thickness(8, 0, 0, 0);
-                siteButton = Ui.MakeButton(SiteLink.IsLinked ? "Envoyer au site" : "Lier au site", false, OnSiteButton);
-                Ui.SetTip(siteButton, "Prototype : lie l'outil à ton compte du site. Ensuite, les valeurs relevées "
-                    + "(niveau, oméga, succès débloqués) y partent toutes seules, au plus une fois par minute ; "
-                    + "ce bouton les envoie tout de suite.");
-                siteButton.Margin = new Thickness(8, 0, 0, 0);
-                DockPanel.SetDock(siteButton, Dock.Right);
-                toolbar.Children.Add(siteButton);
                 DockPanel.SetDock(readButton, Dock.Right);
                 toolbar.Children.Add(readButton);
             }
@@ -459,15 +452,18 @@ namespace DofuxyaManager
 
             if (settings.ScreenReading)
             {
-                page.Children.Add(MakeOption("Relever automatiquement la fenêtre Dofus active (prototype)",
+                page.Children.Add(MakeOption("Lire l'écran du jeu et mettre le site à jour",
                     settings.AutoReading, delegate(bool value)
                     {
                         settings.AutoReading = value;
                         settings.Save();
-                    }, "Toutes les 30 secondes, l'outil lit niveau, oméga et succès de la fenêtre Dofus au premier "
-                        + "plan, et note les nouveaux messages du chat qui parlent de succès ou de niveau dans "
-                        + "evenements.txt. Rien n'est envoyé au site sans ton accord."));
+                    }, "L'outil lit à l'écran des fenêtres Dofus le niveau et l'oméga, les succès débloqués et les "
+                        + "quêtes terminées (chat, notifications), sans rien envoyer au jeu. Si l'outil est lié au "
+                        + "site, ce qui change y part tout seul, au plus une fois par minute. Les messages retenus "
+                        + "sont notés dans evenements.txt ; aucune image n'est gardée."));
             }
+
+            AddSiteOptions(page);
 
             page.Children.Add(MakeSectionTitle("Démarrage"));
             page.Children.Add(MakeOption("Lancer avec Windows, réduit dans la zone de notification",
@@ -705,7 +701,21 @@ namespace DofuxyaManager
             names.Margin = new Thickness(0, 0, 14, 0);
             TextBlock nameText = Ui.Text(named ? window.Name : "(en attente d'un personnage)", 15, true, Ui.ColText);
             names.Children.Add(nameText);
+            SiteCharacter siteCharacter = SiteCharacterOf(window);
+            if (siteCharacter != null)
+            {
+                // Perso du compte lie : un clic sur son nom ouvre sa fiche sur le site.
+                nameText.Cursor = Cursors.Hand;
+                Ui.SetTip(nameText, "Ouvrir sa fiche sur le site.");
+                nameText.MouseEnter += delegate { nameText.TextDecorations = TextDecorations.Underline; };
+                nameText.MouseLeave += delegate { nameText.TextDecorations = null; };
+                nameText.MouseLeftButtonUp += delegate { OpenCharacterSheet(siteCharacter); };
+            }
             string detail = window.ClassName.Length > 0 ? window.ClassName + " · " + window.Game : window.Game;
+            if (siteCharacter != null && window.LastReading == null && siteCharacter.LevelText().Length > 0)
+            {
+                detail += " · " + siteCharacter.LevelText();
+            }
             if (named && window.Key == settings.LeaderKey) detail += " · principal";
             names.Children.Add(Ui.Text(detail, 12, false, Ui.ColMuted));
             if (window.LastReading != null)

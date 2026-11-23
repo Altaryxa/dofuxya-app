@@ -19,8 +19,9 @@ using System.Windows.Threading;
 namespace DofuxyaManager
 {
     // Fenetre principale. Le code est reparti par theme : MainWindow.cs (etat, detection, icones),
-    // MainWindow.Layout.cs (interface), MainWindow.Shortcuts.cs (raccourcis, tour, ordre) et
-    // MainWindow.System.cs (barre des taches, demarrage, zone de notification, diagnostic).
+    // MainWindow.Layout.cs (interface), MainWindow.Shortcuts.cs (raccourcis, tour, ordre),
+    // MainWindow.System.cs (barre des taches, demarrage, zone de notification, diagnostic),
+    // MainWindow.Site.cs (liaison au site, Almanax) et MainWindow.Reading.cs (lecture d'ecran).
     internal partial class MainWindow : Window
     {
         private const string Version = AppVersion.Number;
@@ -172,6 +173,7 @@ namespace DofuxyaManager
             fullscreenTimer.Tick += delegate { UpdateFullscreenMarks(); };
             fullscreenTimer.Start();
             StartAutoReading();
+            StartSite();
             RefreshAll(true);
         }
         // ---------- Détection ----------

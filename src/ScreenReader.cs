@@ -18,19 +18,16 @@ namespace DofuxyaManager
     {
         public int Level;
         public int Omega;
-        public int Success;
-        public bool SuccessFromAccount;
         public DateTime At;
         public string Note = "";
         public string Diagnostic = "";   // details de lecture, pour le journal seulement
         public readonly List<string> Events = new List<string>();
         // Lignes du chat visibles (texte apres l'heure), pour reperer les nouvelles d'une lecture a l'autre.
         public readonly List<string> ChatLines = new List<string>();
-        // Succes debloques lus a l'ecran (« nom (catégorie) ») : fenetre des recompenses a recuperer.
+        // Succes debloques lus a l'ecran (« nom (catégorie) ») : notification, fenetre des recompenses.
         public readonly List<string> Unlocked = new List<string>();
 
-        // Garde les valeurs d'un releve precedent que celui-ci n'a pas lues (total de succes quand le
-        // panneau est ferme, par exemple).
+        // Garde les valeurs d'un releve precedent que celui-ci n'a pas lues.
         public void KeepFrom(Reading previous)
         {
             if (previous == null) return;
@@ -38,11 +35,6 @@ namespace DofuxyaManager
             {
                 Level = previous.Level;
                 Omega = previous.Omega;
-            }
-            if (Success == 0)
-            {
-                Success = previous.Success;
-                SuccessFromAccount = previous.SuccessFromAccount;
             }
             // Les evenements du chat deja vus restent dans l'infobulle (les 10 derniers).
             List<string> events = new List<string>(previous.Events);
@@ -53,27 +45,20 @@ namespace DofuxyaManager
 
         public string Values()
         {
-            return Level + "/" + Omega + "/" + Success + "/" + SuccessFromAccount;
+            return Level + "/" + Omega;
         }
 
         public string Summary()
         {
-            List<string> parts = new List<string>();
-            if (Omega > 0) parts.Add("Niv. 200 · Ω " + Omega);
-            else if (Level > 0) parts.Add("Niv. " + Level);
-            if (Success > 0)
-            {
-                parts.Add(Success.ToString("N0", CultureInfo.GetCultureInfo("fr-FR"))
-                    + (SuccessFromAccount ? " succès (compte)" : " succès"));
-            }
-            if (parts.Count == 0) parts.Add("rien de lu");
-            return string.Join(" · ", parts.ToArray()) + " · relevé à " + At.ToString("HH:mm");
+            string value = Omega > 0 ? "Niv. 200 · Ω " + Omega : Level > 0 ? "Niv. " + Level : "rien de lu";
+            return value + " · relevé à " + At.ToString("HH:mm");
         }
     }
 
-    // Lecture d'ecran (prototype) : capture la fenetre du jeu, la passe a la reconnaissance de texte
-    // de Windows, et y cherche niveau, omega et total des succes par leur texte, ou qu'ils soient
-    // (les interfaces du jeu se deplacent). N'agit jamais sur le jeu ; l'image n'est pas gardee.
+    // Lecture d'ecran (reservee a l'auteur) : capture la fenetre du jeu, la passe a la reconnaissance de
+    // texte de Windows, et y cherche niveau et omega, succes debloques et quetes terminees, par leur
+    // texte, ou qu'ils soient (les interfaces du jeu se deplacent). N'agit jamais sur le jeu ; l'image
+    // n'est pas gardee.
     internal static class ScreenReader
     {
         private static readonly string[] Classes =
@@ -122,7 +107,7 @@ namespace DofuxyaManager
             }
             if (log != null)
             {
-                if (reading.Note.Length > 0 && reading.Level == 0 && reading.Success == 0) log.AppendLine("=== " + name);
+                if (reading.Note.Length > 0 && reading.Level == 0) log.AppendLine("=== " + name);
                 log.AppendLine("--> " + reading.Summary() + (reading.Note.Length > 0 ? " [" + reading.Note + "]" : ""));
                 if (reading.Diagnostic.Length > 0) log.AppendLine("    " + reading.Diagnostic);
                 log.AppendLine();
@@ -146,7 +131,7 @@ namespace DofuxyaManager
 
         // ---------- Lecture continue (voir ScreenWatcher) ----------
 
-        // Zone utile de la fenetre : panneau des succes, chat, barre d'XP, fiche Caracteristiques.
+        // Zone utile de la fenetre : chat, barre d'XP, fiche Caracteristiques, notification de succes.
         public class Zone
         {
             public string Kind;
@@ -154,48 +139,22 @@ namespace DofuxyaManager
         }
 
         // Lecture complete d'une image, avec les zones utiles reperees (coordonnees de l'image).
-        public static void ReadFull(Reading reading, Bitmap image, string name, List<Zone> zones, List<string> panelLines)
+        public static void ReadFull(Reading reading, Bitmap image, string name, List<Zone> zones)
         {
             List<Word> words;
             List<string> lines;
             Recognize(image, out words, out lines);
             Parse(reading, words, lines, image, name);
             FindZones(words, lines, new Rectangle(0, 0, image.Width, image.Height), zones);
-            foreach (Zone zone in zones)
-            {
-                if (zone.Kind != "succes") continue;
-                foreach (Word word in words)
-                {
-                    if (zone.Rect.Contains((int)word.X, (int)word.Y)) { CollectPanel(lines, words, zone.Rect, panelLines); break; }
-                }
-            }
         }
 
         // Lecture d'une zone deja decoupee (image de la zone seule).
-        public static void ReadZone(Reading reading, Bitmap zoneImage, string kind, string name, List<string> panelLines)
+        public static void ReadZone(Reading reading, Bitmap zoneImage, string name)
         {
             List<Word> words;
             List<string> lines;
             Recognize(zoneImage, out words, out lines);
             Parse(reading, words, lines, zoneImage, name);
-            if (kind == "succes") CollectPanel(lines, words, new Rectangle(0, 0, zoneImage.Width, zoneImage.Height), panelLines);
-        }
-
-        // Textes du panneau des succes (pour constituer le catalogue), sans les positions.
-        private static void CollectPanel(List<string> lines, List<Word> words, Rectangle rect, List<string> panelLines)
-        {
-            if (panelLines == null) return;
-            HashSet<int> inside = new HashSet<int>();
-            foreach (Word word in words)
-            {
-                if (rect.Contains((int)word.X, (int)word.Y)) inside.Add(word.Line);
-            }
-            for (int i = 0; i < lines.Count; i++)
-            {
-                string text = lines[i].Substring(12).Trim();
-                // Une heure (« [19:13] », « [19:131 ») trahit une ligne du chat.
-                if (inside.Contains(i) && !Regex.IsMatch(text, @"\d{1,2}\s*[:.]\s*\d{2}\s*[\]1l]")) panelLines.Add(text);
-            }
         }
 
         private static void FindZones(List<Word> words, List<string> lines, Rectangle bounds, List<Zone> zones)
@@ -216,28 +175,6 @@ namespace DofuxyaManager
             {
                 chat = new Rectangle(chat.X - 40, chat.Y - 24, chat.Width + 400, chat.Height + 48);
                 Add(zones, "chat", chat, bounds);
-            }
-
-            // Panneau des succes, a ses vrais bords : de la colonne des categories (« Compte »,
-            // « PROGRESSION GÉNÉRALE ») au bord droit, sans deborder sur le chat ni sur la fiche
-            // voisine (sinon chaque message du chat ferait relire tout le panneau).
-            Word title = null;
-            foreach (Word word in words)
-            {
-                if ((word.Text == "Succès" || word.Text == "Succes") && (title == null || word.H > title.H)) title = word;
-            }
-            if (title != null)
-            {
-                int left = (int)title.X - 580;
-                foreach (Word word in words)
-                {
-                    bool column = word.Text == "Compte" || word.Text == "PROGRESSION" || word.Text == "Rechercher...";
-                    if (column && Math.Abs(word.Y - title.Y) < 200 && word.X < title.X) left = Math.Max(left, (int)word.X - 50);
-                }
-                int bottom = (int)title.Y + 850;
-                if (!chat.IsEmpty && chat.Right > left && chat.Top > title.Y) bottom = Math.Min(bottom, chat.Top - 4);
-                int right = (int)title.X + 640;
-                Add(zones, "succes", Rectangle.FromLTRB(left, (int)title.Y - 24, right, bottom), bounds);
             }
 
             // Notification de succes : elle ne reste que quelques secondes, sa place est retenue (ScreenWatcher).
@@ -296,7 +233,9 @@ namespace DofuxyaManager
                     string achievement = UnlockedAchievement(line);
                     int value;
                     bool omega;
+                    string quest = CompletedQuest(line);
                     if (achievement != null) report.AppendLine("  succès débloqué : " + achievement);
+                    else if (quest != null) report.AppendLine("  quête terminée : " + quest);
                     else if (LevelUpOf(line, "Osmalie", out value, out omega))
                         report.AppendLine("  " + (omega ? "oméga " : "niveau ") + value + " (Osmalie)");
                 }
@@ -611,13 +550,11 @@ namespace DofuxyaManager
                 }
             }
 
-            Word successNumber = ReadSuccess(reading, words, image);
-
             if (reading.Level == 0 && reading.Omega == 0)
             {
                 foreach (Word word in words)
                 {
-                    if (word == successNumber || !Regex.IsMatch(word.Text, @"^\d{1,4}$")) continue;
+                    if (!Regex.IsMatch(word.Text, @"^\d{1,4}$")) continue;
                     if (GoldShare(image, word) < 0.25) continue;
                     reading.Omega = int.Parse(word.Text);
                 }
@@ -642,6 +579,27 @@ namespace DofuxyaManager
         private static readonly Regex LevelUp = new Regex(
             @"(\S+)\s+vient\s+de\s+passer\s+au\s+niveau\s+(om\S{0,2}ga\s+)?(\d{1,4})", RegexOptions.IgnoreCase);
 
+        // Quete terminee (format pas encore vu en jeu, a confirmer dans evenements.txt) : une ligne qui
+        // parle d'une quete terminee, validee, accomplie ou achevee. Le nom est pris entre crochets,
+        // entre guillemets, ou apres les deux-points.
+        private static readonly Regex QuestDone = new Regex(
+            @"qu\S{0,2}te\b.*\b(termin|valid|accompli|achev)|\b(termin|valid|accompli|achev)\S*\s+(la\s+)?qu\S{0,2}te\b",
+            RegexOptions.IgnoreCase);
+        private static readonly Regex QuestName = new Regex(@"\[([^\]]{2,120})\]|«\s*([^»]{2,120}?)\s*»|:\s*(.{2,120}?)\s*\.?$");
+
+        // Nom de la quete terminee par le perso de la fenetre, ou null.
+        public static string CompletedQuest(string line)
+        {
+            if (!QuestDone.IsMatch(line)) return null;
+            Match name = QuestName.Match(line);
+            if (!name.Success) return null;
+            for (int i = 1; i <= 3; i++)
+            {
+                if (name.Groups[i].Success) return name.Groups[i].Value.Trim();
+            }
+            return null;
+        }
+
         // Nom du succes debloque par le perso de la fenetre, ou null.
         public static string UnlockedAchievement(string line)
         {
@@ -660,12 +618,13 @@ namespace DofuxyaManager
             return int.TryParse(match.Groups[3].Value, out value) && value > 0;
         }
 
-        // Ligne du chat qui parle d'un succes, d'un niveau ou de l'omega.
+        // Ligne du chat qui parle d'un succes, d'une quete, d'un niveau ou de l'omega.
         public static bool IsProgressLine(string line)
         {
             string lower = line.ToLowerInvariant();
             return lower.Contains("succès") || lower.Contains("succes") || lower.Contains("niveau")
-                || lower.Contains("oméga") || lower.Contains("omega");
+                || lower.Contains("oméga") || lower.Contains("omega") || lower.Contains("quête")
+                || lower.Contains("quete");
         }
 
         // Forme comparable d'une ligne du chat (la lecture varie un peu d'une capture a l'autre).
@@ -711,78 +670,6 @@ namespace DofuxyaManager
                 }
             }
             return 0;
-        }
-
-        // Panneau des succes : le total, juste sous le titre « Succès », si « Personnage » est actif.
-        private static Word ReadSuccess(Reading reading, List<Word> words, Bitmap image)
-        {
-            // Le titre du panneau est le « Succès » ecrit le plus grand (le mot revient dans les cartes).
-            Word title = null;
-            foreach (Word word in words)
-            {
-                if (word.Text != "Succès" && word.Text != "Succes") continue;
-                if (title == null || word.H > title.H) title = word;
-            }
-            if (title == null) return null;
-
-            // Le nombre peut etre coupe en plusieurs mots (« 14 751e ») : on regroupe ceux d'une meme ligne.
-            Word best = null;
-            int bestValue = 0;
-            double bestDistance = double.MaxValue;
-            Dictionary<int, List<Word>> byLine = new Dictionary<int, List<Word>>();
-            foreach (Word word in words)
-            {
-                if (word.Y <= title.Y + title.H || word.Y > title.Y + 140) continue;
-                if (Math.Abs(word.X - title.X) > 400) continue;
-                List<Word> group;
-                if (!byLine.TryGetValue(word.Line, out group)) byLine[word.Line] = group = new List<Word>();
-                group.Add(word);
-            }
-            foreach (List<Word> group in byLine.Values)
-            {
-                StringBuilder text = new StringBuilder();
-                foreach (Word word in group) text.Append(word.Text).Append(' ');
-                Match match = Regex.Match(text.ToString().Trim(), @"^(\d{1,3}(?:\s\d{3})*)\D{1,3}$");
-                if (!match.Success) continue;
-                double distance = group[0].Y - title.Y;
-                if (distance >= bestDistance) continue;
-                bestDistance = distance;
-                bestValue = int.Parse(Regex.Replace(match.Groups[1].Value, @"\s", ""));
-                best = group[0];
-            }
-            if (best == null)
-            {
-                // Secours : la carte « Obtenir N points de Succès » montre « 14751/16000 ».
-                foreach (Word word in words)
-                {
-                    Match progress = Regex.Match(word.Text, @"^(\d{1,6})/(\d{3,6})$");
-                    if (!progress.Success) continue;
-                    int done = int.Parse(progress.Groups[1].Value);
-                    if (done >= int.Parse(progress.Groups[2].Value)) continue;
-                    foreach (Word other in words)
-                    {
-                        if (other.Text != "points" || other.Y >= word.Y || other.Y < word.Y - 90) continue;
-                        if (Math.Abs(other.X - word.X) > 300) continue;
-                        best = word;
-                        bestValue = done;
-                    }
-                }
-                if (best == null) return null;
-            }
-
-            reading.Success = bestValue;
-            Word person = null;
-            Word account = null;
-            foreach (Word word in words)
-            {
-                if (Math.Abs(word.CenterY - best.CenterY) > 200 && Math.Abs(word.CenterY - title.CenterY) > 200) continue;
-                if (word.Text == "Personnage") person = word;
-                if (word.Text == "Compte") account = word;
-            }
-            if (person != null && IsGreen(image, person)) return best;
-            if (account != null && IsGreen(image, account)) reading.SuccessFromAccount = true;
-            else reading.Note = "onglet Compte / Personnage non reconnu";
-            return best;
         }
 
         // « SUCCÈS » en capitales suivi de « DÉVERROUILLÉ » sur la meme ligne (notification du jeu).
@@ -884,27 +771,6 @@ namespace DofuxyaManager
             }
             if (count == 0) return Color.Black;
             return Color.FromArgb((int)(r / count), (int)(g / count), (int)(b / count));
-        }
-
-        // Texte vert (onglet actif) : moyenne des pixels clairs du mot.
-        private static bool IsGreen(Bitmap image, Word word)
-        {
-            long r = 0, g = 0, b = 0;
-            int count = 0;
-            for (int x = (int)word.X; x < (int)word.Right && x < image.Width; x++)
-            {
-                for (int y = (int)word.Y; y < (int)(word.Y + word.H) && y < image.Height; y++)
-                {
-                    Color c = image.GetPixel(x, y);
-                    if (c.R + c.G + c.B < 300) continue;
-                    r += c.R;
-                    g += c.G;
-                    b += c.B;
-                    count++;
-                }
-            }
-            if (count == 0) return false;
-            return g / count > r / count + 25 && g / count > b / count + 25;
         }
     }
 }

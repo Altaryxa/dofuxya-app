@@ -4,10 +4,10 @@ using System.Drawing;
 
 namespace DofuxyaManager
 {
-    // Lecture continue de la fenetre Dofus au premier plan (prototype, F-50), faite pour ne pas peser
+    // Lecture continue de la fenetre Dofus au premier plan (reservee a l'auteur, F-50), faite pour ne pas peser
     // sur le jeu :
     // - une lecture complete toutes les 30 s (ou au changement de fenetre) repere les zones utiles :
-    //   panneau des succes, chat, barre d'XP, fiche Caracteristiques ;
+    //   chat, barre d'XP, fiche Caracteristiques ;
     // - chaque seconde, seules ces zones sont copiees depuis l'ecran et comparees a grands traits ;
     // - une zone n'est relue que si elle a change ET qu'elle est stable depuis la seconde precedente
     //   (on attend la fin d'un defilement avant de lire).
@@ -33,11 +33,10 @@ namespace DofuxyaManager
         private readonly double[] cornerYellow = new double[4];
         private readonly DateTime[] cornerRead = new DateTime[4];
 
-        // Renvoie un releve quand quelque chose a ete lu, sinon null. panelLines recoit les textes du
-        // panneau des succes lus a cette occasion.
-        public Reading Tick(IntPtr hWnd, string name, List<string> panelLines)
+        // Renvoie un releve quand quelque chose a ete lu, sinon null.
+        public Reading Tick(IntPtr hWnd, string name)
         {
-            if (hWnd != window || DateTime.UtcNow - lastFull > FullEvery) return Full(hWnd, name, panelLines);
+            if (hWnd != window || DateTime.UtcNow - lastFull > FullEvery) return Full(hWnd, name);
 
             Reading reading = WatchCorners(hWnd, name);
             foreach (Watched watched in zones)
@@ -51,7 +50,7 @@ namespace DofuxyaManager
                     if (!stable || !ScreenReader.Differs(signature, watched.Read)) continue;
                     watched.Read = signature;
                     if (reading == null) reading = new Reading { At = DateTime.Now };
-                    ScreenReader.ReadZone(reading, image, watched.Zone.Kind, name, panelLines);
+                    ScreenReader.ReadZone(reading, image, name);
                 }
             }
             return reading;
@@ -84,15 +83,10 @@ namespace DofuxyaManager
                     background[hWnd] = state;
                     Reading full = new Reading { At = DateTime.Now };
                     List<ScreenReader.Zone> found = new List<ScreenReader.Zone>();
-                    ScreenReader.ReadFull(full, image, name, found, null);
+                    ScreenReader.ReadFull(full, image, name, found);
                     foreach (ScreenReader.Zone zone in found)
                     {
-                        if (zone.Kind != "chat" && zone.Kind != "xp") continue;
-                        using (Bitmap part = image.Clone(zone.Rect, image.PixelFormat))
-                        {
-                            byte[] signature = ScreenReader.Signature(part);
-                            state.Zones.Add(new Watched { Zone = zone, Read = signature, Previous = signature });
-                        }
+                        if (zone.Kind == "chat" || zone.Kind == "xp") state.Zones.Add(Watch(image, zone));
                     }
                     return full;
                 }
@@ -108,7 +102,7 @@ namespace DofuxyaManager
                         if (!ScreenReader.Differs(signature, watched.Read)) continue;
                         watched.Read = signature;
                         if (reading == null) reading = new Reading { At = DateTime.Now };
-                        ScreenReader.ReadZone(reading, part, watched.Zone.Kind, name, null);
+                        ScreenReader.ReadZone(reading, part, name);
                     }
                 }
                 return reading;
@@ -142,13 +136,13 @@ namespace DofuxyaManager
                     if (!appeared || DateTime.UtcNow - cornerRead[i] < CornerPause) continue;
                     cornerRead[i] = DateTime.UtcNow;
                     if (reading == null) reading = new Reading { At = DateTime.Now };
-                    ScreenReader.ReadZone(reading, image, "notification", name, null);
+                    ScreenReader.ReadZone(reading, image, name);
                 }
             }
             return reading;
         }
 
-        private Reading Full(IntPtr hWnd, string name, List<string> panelLines)
+        private Reading Full(IntPtr hWnd, string name)
         {
             window = hWnd;
             lastFull = DateTime.UtcNow;
@@ -158,18 +152,23 @@ namespace DofuxyaManager
                 if (image == null) return null;
                 Reading reading = new Reading { At = DateTime.Now };
                 List<ScreenReader.Zone> found = new List<ScreenReader.Zone>();
-                ScreenReader.ReadFull(reading, image, name, found, panelLines);
-                // Les coins sont surveilles a part (WatchCorners).
-                found.RemoveAll(delegate(ScreenReader.Zone z) { return z.Kind == "notification"; });
+                ScreenReader.ReadFull(reading, image, name, found);
                 foreach (ScreenReader.Zone zone in found)
                 {
-                    using (Bitmap part = image.Clone(zone.Rect, image.PixelFormat))
-                    {
-                        byte[] signature = ScreenReader.Signature(part);
-                        zones.Add(new Watched { Zone = zone, Read = signature, Previous = signature });
-                    }
+                    // Les coins sont surveilles a part (WatchCorners).
+                    if (zone.Kind != "notification") zones.Add(Watch(image, zone));
                 }
                 return reading;
+            }
+        }
+
+        // Zone a surveiller, avec l'empreinte de son etat actuel.
+        private static Watched Watch(Bitmap image, ScreenReader.Zone zone)
+        {
+            using (Bitmap part = image.Clone(zone.Rect, image.PixelFormat))
+            {
+                byte[] signature = ScreenReader.Signature(part);
+                return new Watched { Zone = zone, Read = signature, Previous = signature };
             }
         }
     }

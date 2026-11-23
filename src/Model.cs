@@ -116,7 +116,8 @@ namespace DofuxyaManager
         public Hotkey Direct = new Hotkey();
         public int ManualRank;            // rang fixe a la main (0 = ordre d'initiative)
         public Reading LastReading;       // dernier releve de l'ecran (prototype), null si aucun
-        public readonly List<string> Unlocked = new List<string>(); // succes vus debloques dans le chat (session)
+        public readonly List<string> Unlocked = new List<string>(); // succes vus debloques (session)
+        public readonly List<string> Quests = new List<string>();   // quetes vues terminees (session)
 
         public string Key
         {
@@ -139,7 +140,20 @@ namespace DofuxyaManager
             return true;
         }
 
-        private static string BaseName(string achievement)
+        // Retient une quete terminee si elle n'est pas deja connue. Renvoie true si nouvelle.
+        public bool AddQuest(string quest)
+        {
+            string key = ScreenReader.ChatKey(quest);
+            foreach (string known in Quests)
+            {
+                if (ScreenReader.ChatKey(known) == key) return false;
+            }
+            Quests.Add(quest);
+            return true;
+        }
+
+        // Nom d'un succes sans sa categorie (« nom (catégorie) » -> « nom »).
+        public static string BaseName(string achievement)
         {
             int paren = achievement.LastIndexOf(" (");
             return paren > 0 ? achievement.Substring(0, paren) : achievement;
@@ -302,10 +316,14 @@ namespace DofuxyaManager
 
     internal static class AppPaths
     {
+        private static string dataFolder;
+
+        // Dossier des reglages et journaux, prepare au premier appel seulement.
         public static string DataFolder
         {
             get
             {
+                if (dataFolder != null) return dataFolder;
                 string root = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
                 string folder = Path.Combine(root, "Dofuxya");
                 string old = Path.Combine(root, "DofuxyaManager");
@@ -318,8 +336,43 @@ namespace DofuxyaManager
                 catch (Exception)
                 {
                 }
+                dataFolder = folder;
                 return folder;
             }
+        }
+    }
+
+    // Journaux texte de %AppData%\Dofuxya (aucune image) : une ecriture qui echoue ne doit jamais
+    // gener l'outil.
+    internal static class DataLog
+    {
+        public static void Append(string file, string text)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            try
+            {
+                File.AppendAllText(Path.Combine(AppPaths.DataFolder, file), text, Encoding.UTF8);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        public static void Write(string file, string text)
+        {
+            try
+            {
+                File.WriteAllText(Path.Combine(AppPaths.DataFolder, file), text, Encoding.UTF8);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        // « 2026-11-23 18:04:12 [Keax] [quête] texte »
+        public static string Line(string name, string kind, string text)
+        {
+            return DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [" + name + "] [" + kind + "] " + text + Environment.NewLine;
         }
     }
 
@@ -449,11 +502,15 @@ namespace DofuxyaManager
         public bool MiniVertical;
         public bool AutoFollow;
         public bool AutoMaximizeRetro;
-        // Prototype de lecture d'ecran : active seulement par « lecture_ecran=1 » dans reglages.txt.
+        // Lecture d'ecran (reservee a l'auteur pour l'instant) : activee seulement par « lecture_ecran=1 »
+        // dans reglages.txt.
         public bool ScreenReading;
         public bool AutoReading;
-        // Adresse du site pour l'envoi des releves (« site=http://localhost:3000 » pour les essais).
+        // Adresse du site (« site=http://localhost:3000 » pour les essais).
         public string SiteUrl = "https://dofuxya.com";
+        // Rappel de l'Almanax du jour (outil lie au site) et dernier jour rappele (aaaa-mm-jj).
+        public bool AlmanaxReminder = true;
+        public string AlmanaxSeen = "";
         public Hotkey Leader = new Hotkey();
         // Touche a maintenir pendant le clic qui ouvre la roue des persos (aucune = roue desactivee).
         public Hotkey WheelKey = new Hotkey();
@@ -494,6 +551,8 @@ namespace DofuxyaManager
                         else if (key == "lecture_ecran") ScreenReading = value == "1";
                         else if (key == "releve_auto") AutoReading = value == "1";
                         else if (key == "site" && value.StartsWith("http")) SiteUrl = value.TrimEnd('/');
+                        else if (key == "rappel_almanax") AlmanaxReminder = value != "0";
+                        else if (key == "almanax_vu") AlmanaxSeen = value;
                         else if (key == "principal_touche") Leader = Hotkey.Parse(value);
                         else if (key == "roue_touche") WheelKey = Hotkey.Parse(value);
                         else if (key == "principal") LeaderKey = line.Substring(separator + 1);
@@ -542,6 +601,8 @@ namespace DofuxyaManager
                 if (ScreenReading) lines.Add("lecture_ecran=1");
                 if (AutoReading) lines.Add("releve_auto=1");
                 if (SiteUrl != "https://dofuxya.com") lines.Add("site=" + SiteUrl);
+                lines.Add("rappel_almanax=" + (AlmanaxReminder ? "1" : "0"));
+                if (AlmanaxSeen.Length > 0) lines.Add("almanax_vu=" + AlmanaxSeen);
                 lines.Add("principal_touche=" + Leader.Serialize());
                 lines.Add("roue_touche=" + WheelKey.Serialize());
                 lines.Add("principal=" + LeaderKey);
