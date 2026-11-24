@@ -35,13 +35,25 @@ jobs:
         shell: cmd
         run: build.bat
 
+      # Sans captures dans tests/captures, rien a verifier : on saute l'installation de la reconnaissance
+      # de texte (telechargee par Windows Update, parfois plus d'une demi-heure) et les tests.
+      - name: Captures de test presentes ?
+        id: captures
+        shell: pwsh
+        run: |
+          $count = @(Get-ChildItem tests/captures -Filter *.png -ErrorAction SilentlyContinue).Count
+          "present=$($count -gt 0)" >> $env:GITHUB_OUTPUT
+
       - name: Reconnaissance de texte en francais (Windows)
+        if: steps.captures.outputs.present == 'True'
+        timeout-minutes: 20
         shell: pwsh
         run: |
           $ocr = Get-WindowsCapability -Online -Name "Language.OCR~~~fr-FR~0.0.1.0"
           if ($ocr.State -ne "Installed") { Add-WindowsCapability -Online -Name "Language.OCR~~~fr-FR~0.0.1.0" | Out-Null }
 
       - name: Tests de la lecture d'ecran
+        if: steps.captures.outputs.present == 'True'
         shell: pwsh
         run: ./tests/verifier-lecture.ps1
 
