@@ -201,13 +201,21 @@ namespace DofuxyaManager
             return text.IndexOf("dofus", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
+        // Processus du jeu : « Dofus » (Dofus.exe) ou « Dofus Retro » (Dofus Retro.exe), nom exact.
+        // Les autres programmes dont le nom contient « dofus » (Dofus Guide…) sont ignores.
+        private static bool IsGameProcess(string processName)
+        {
+            return string.Equals(processName, "Dofus", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(processName, "Dofus Retro", StringComparison.OrdinalIgnoreCase);
+        }
+
         private static bool ContainsRetro(string text)
         {
             return text.IndexOf("retro", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         // Liste les fenetres principales visibles. Sans "broad", seules celles dont le
-        // processus contient "dofus" sont gardees ; avec, celles dont le titre le contient aussi.
+        // processus est celui du jeu sont gardees ; avec, celles dont le titre le contient aussi.
         public static List<RawWindow> Enumerate(bool broad)
         {
             List<RawWindow> result = new List<RawWindow>();
@@ -231,7 +239,7 @@ namespace DofuxyaManager
                 Native.GetWindowText(hWnd, title, title.Capacity);
                 string titleText = title.ToString();
 
-                bool isDofusProcess = ContainsDofus(processName);
+                bool isDofusProcess = IsGameProcess(processName);
                 bool titleMatches = ContainsDofus(titleText);
                 if (!isDofusProcess && !(broad && titleMatches)) return true;
 
@@ -299,13 +307,13 @@ namespace DofuxyaManager
             window.Game = game;
         }
 
-        // Vrai si la fenetre appartient a un processus Dofus (meme pas encore listee).
+        // Vrai si la fenetre appartient au processus du jeu (meme pas encore listee).
         public static bool IsDofusProcessWindow(IntPtr hWnd)
         {
             if (hWnd == IntPtr.Zero) return false;
             uint pid;
             Native.GetWindowThreadProcessId(hWnd, out pid);
-            return pid != 0 && pid != ownPid && ContainsDofus(ProcessName(pid));
+            return pid != 0 && pid != ownPid && IsGameProcess(ProcessName(pid));
         }
 
         private static bool StartsWithDofus(string text)

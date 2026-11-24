@@ -82,12 +82,13 @@ namespace DofuxyaManager
                     if (revoked)
                     {
                         siteCharacters.Clear();
-                        lastMessage = "La liaison avec le site a été retirée : relie l'outil depuis l'onglet Options.";
+                        lastMessage = "Le site refuse la liaison de l'outil : relie-le depuis l'onglet Options.";
                         UpdateSiteUi();
                         RebuildRows();
                         UpdateStatus();
                         return;
                     }
+                    UpdateSiteUi();
                     if (characters != null) UseSiteCharacters(characters);
                     if (day != null) RemindAlmanax(day);
                 }));
@@ -194,17 +195,20 @@ namespace DofuxyaManager
         {
             if (linkButton == null) return;
             bool linked = SiteLink.IsLinked;
+            bool refused = linked && SiteLink.Refused;
             linkButton.IsEnabled = !linking;
-            linkButton.Content = linking ? "En attente…" : linked ? "Délier" : "Lier au site";
+            linkButton.Content = linking ? "En attente…" : refused ? "Relier" : linked ? "Délier" : "Lier au site";
             linkText.Text = linking
                 ? "Autorise l'outil dans la page ouverte dans ton navigateur."
+                : refused ? "Le site refuse la liaison (appareil retiré de ton profil ?)."
                 : linked ? "Lié à ton compte du site." : "Non lié.";
         }
 
         private void OnLinkButton()
         {
             if (linking) return;
-            if (SiteLink.IsLinked)
+            // Liaison refusee par le site : on relie (la nouvelle cle remplace l'ancienne).
+            if (SiteLink.IsLinked && !SiteLink.Refused)
             {
                 SiteLink.Unlink();
                 siteCharacters.Clear();

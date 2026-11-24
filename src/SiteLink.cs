@@ -34,6 +34,11 @@ namespace DofuxyaManager
             get { return LoadToken() != null; }
         }
 
+        // Vrai quand le site a refuse la cle (appareil retire du profil, base locale recreee…). La cle
+        // est gardee : une erreur passagere ne delie pas l'outil, et une reponse acceptee efface l'alerte.
+        // Le joueur relie l'outil d'un clic s'il le faut.
+        public static volatile bool Refused;
+
         // ---------- Liaison ----------
 
         // Ouvre la page d'autorisation dans le navigateur, puis attend la cle (10 minutes au plus).
@@ -74,6 +79,7 @@ namespace DofuxyaManager
             try
             {
                 if (File.Exists(KeyPath)) File.Delete(KeyPath);
+                Refused = false;
             }
             catch (Exception)
             {
@@ -197,6 +203,7 @@ namespace DofuxyaManager
             {
                 using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
                 {
+                    if (token != null) Refused = false;
                     return Read(response);
                 }
             }
@@ -208,8 +215,8 @@ namespace DofuxyaManager
                 {
                     string text = Text(Read(response), "error");
                     if (text.Length == 0) text = response.StatusDescription;
-                    // Cle revoquee depuis le site : l'outil n'est plus lie.
-                    if ((int)response.StatusCode == 401) Unlink();
+                    // Cle refusee : gardee, mais signalee (voir Refused).
+                    if (token != null && (int)response.StatusCode == 401) Refused = true;
                     throw new SiteError((int)response.StatusCode, text);
                 }
             }
@@ -244,6 +251,7 @@ namespace DofuxyaManager
         {
             byte[] secret = ProtectedData.Protect(Encoding.UTF8.GetBytes(token), null, DataProtectionScope.CurrentUser);
             File.WriteAllBytes(KeyPath, secret);
+            Refused = false;
         }
 
         private static string LoadToken()
