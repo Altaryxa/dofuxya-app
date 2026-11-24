@@ -43,6 +43,10 @@ namespace DofuxyaManager
         private Button nextButton;
         private Button previousButton;
         private readonly TextBlock scopeText = new TextBlock();
+        // Etat de la liaison au site, sous la portee des raccourcis.
+        private StackPanel linkIndicator;
+        private readonly Border linkDot = new Border();
+        private readonly TextBlock linkStateText = new TextBlock();
         private readonly TextBlock previousChip = new TextBlock();
         private readonly TextBlock nextChip = new TextBlock();
         private readonly Dictionary<GameWindow, TextBlock> rowRanks = new Dictionary<GameWindow, TextBlock>();

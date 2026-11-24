@@ -89,6 +89,7 @@ namespace DofuxyaManager
                         return;
                     }
                     UpdateSiteUi();
+                    UpdateStatus();
                     if (characters != null) UseSiteCharacters(characters);
                     if (day != null) RemindAlmanax(day);
                 }));

@@ -115,23 +115,15 @@ namespace DofuxyaManager
             StackPanel footerPanel = new StackPanel();
 
             DockPanel footerLine = new DockPanel();
-            StackPanel scope = new StackPanel();
-            scope.Orientation = Orientation.Horizontal;
-            scope.VerticalAlignment = VerticalAlignment.Center;
-            Border dot = new Border();
-            dot.Width = 8;
-            dot.Height = 8;
-            dot.CornerRadius = new CornerRadius(4);
-            dot.Background = Ui.Paint(Ui.ColAccent);
-            dot.Margin = new Thickness(0, 0, 8, 0);
-            dot.VerticalAlignment = VerticalAlignment.Center;
-            scope.Children.Add(dot);
-            scopeText.FontSize = 13;
-            scopeText.Foreground = Ui.Paint(Ui.ColMuted);
-            scopeText.VerticalAlignment = VerticalAlignment.Center;
-            scope.Children.Add(scopeText);
-            DockPanel.SetDock(scope, Dock.Right);
-            footerLine.Children.Add(scope);
+            // Pastilles a droite : portee des raccourcis, puis etat de la liaison au site (si l'outil est lie).
+            StackPanel indicators = new StackPanel();
+            indicators.VerticalAlignment = VerticalAlignment.Center;
+            indicators.Children.Add(MakeIndicator(new Border { Background = Ui.Paint(Ui.ColAccent) }, scopeText));
+            linkIndicator = MakeIndicator(linkDot, linkStateText);
+            linkIndicator.Margin = new Thickness(0, 4, 0, 0);
+            indicators.Children.Add(linkIndicator);
+            DockPanel.SetDock(indicators, Dock.Right);
+            footerLine.Children.Add(indicators);
 
             StackPanel recap = new StackPanel();
             recap.Orientation = Orientation.Horizontal;
@@ -251,12 +243,35 @@ namespace DofuxyaManager
             return block;
         }
 
+        // Une pastille et son texte, sur une ligne.
+        private static StackPanel MakeIndicator(Border dot, TextBlock text)
+        {
+            StackPanel line = new StackPanel();
+            line.Orientation = Orientation.Horizontal;
+            dot.Width = 8;
+            dot.Height = 8;
+            dot.CornerRadius = new CornerRadius(4);
+            dot.Margin = new Thickness(0, 0, 8, 0);
+            dot.VerticalAlignment = VerticalAlignment.Center;
+            line.Children.Add(dot);
+            text.FontSize = 13;
+            text.Foreground = Ui.Paint(Ui.ColMuted);
+            text.VerticalAlignment = VerticalAlignment.Center;
+            line.Children.Add(text);
+            return line;
+        }
+
         private void UpdateStatus()
         {
             countText.Text = windows.Count + " fenêtre(s) ouverte(s) · " + CycleList().Count + " dans le cycle";
             previousChip.Text = settings.Previous.ToString();
             nextChip.Text = settings.Next.ToString();
             scopeText.Text = settings.OnlyInDofus ? "Raccourcis actifs dans Dofus" : "Raccourcis actifs partout";
+            bool linked = SiteLink.IsLinked;
+            bool refused = linked && SiteLink.Refused;
+            if (linkIndicator != null) linkIndicator.Visibility = linked ? Visibility.Visible : Visibility.Collapsed;
+            linkDot.Background = Ui.Paint(refused ? Ui.ColWarning : Ui.ColAccent);
+            linkStateText.Text = refused ? "Liaison refusée" : "Liaison active";
 
             string text = refusedText;
             if (lastMessage.Length > 0) text += (text.Length > 0 ? "\n" : "") + lastMessage;
