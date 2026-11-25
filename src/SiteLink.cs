@@ -29,9 +29,11 @@ namespace DofuxyaManager
             }
         }
 
-        public static bool IsLinked
+        // Vrai si l'outil a une cle donnee par ce site. Une cle d'un autre site (adresse d'essai
+        // localhost, par exemple) ne compte pas : le site la refuserait.
+        public static bool IsLinkedTo(string site)
         {
-            get { return LoadToken() != null; }
+            return LoadToken(site) != null;
         }
 
         // Vrai quand le site a refuse la cle (appareil retire du profil, base locale recreee…). La cle
@@ -61,7 +63,7 @@ namespace DofuxyaManager
                     string token = Text(answer, "token");
                     if (token.Length > 0)
                     {
-                        SaveToken(token);
+                        SaveToken(site, token);
                         return true;
                     }
                 }
@@ -94,7 +96,7 @@ namespace DofuxyaManager
         // validees) et « unknownQuests ».
         public static Dictionary<string, object> Apply(string site, List<Dictionary<string, object>> readings)
         {
-            return Send("POST", site, "/api/manager/apply", RequireToken(),
+            return Send("POST", site, "/api/manager/apply", RequireToken(site),
                 new Dictionary<string, object> { { "readings", readings } });
         }
 
@@ -102,7 +104,7 @@ namespace DofuxyaManager
         public static List<SiteCharacter> Characters(string site)
         {
             List<SiteCharacter> result = new List<SiteCharacter>();
-            Dictionary<string, object> answer = Send("GET", site, "/api/manager/characters", RequireToken(), null);
+            Dictionary<string, object> answer = Send("GET", site, "/api/manager/characters", RequireToken(site), null);
             foreach (Dictionary<string, object> raw in Objects(answer, "characters"))
             {
                 result.Add(new SiteCharacter
@@ -119,7 +121,7 @@ namespace DofuxyaManager
         public static AlmanaxDay Almanax(string site)
         {
             object value;
-            Dictionary<string, object> answer = Send("GET", site, "/api/manager/almanax", RequireToken(), null);
+            Dictionary<string, object> answer = Send("GET", site, "/api/manager/almanax", RequireToken(site), null);
             Dictionary<string, object> raw = answer.TryGetValue("almanax", out value) ? value as Dictionary<string, object> : null;
             if (raw == null) return null;
             AlmanaxDay day = new AlmanaxDay
@@ -181,9 +183,9 @@ namespace DofuxyaManager
 
         // ---------- Requetes ----------
 
-        private static string RequireToken()
+        private static string RequireToken(string site)
         {
-            string token = LoadToken();
+            string token = LoadToken(site);
             if (token == null) throw new SiteError(401, "outil non lié au site");
             return token;
         }
@@ -247,20 +249,30 @@ namespace DofuxyaManager
 
         // ---------- Cle de l'appareil ----------
 
-        private static void SaveToken(string token)
+        // Adresse des cles enregistrees avant la 1.4.3, qui ne gardaient pas le site qui les avait donnees.
+        private const string DefaultSite = "https://dofuxya.com";
+
+        // La cle est rangee avec l'adresse du site qui l'a donnee : « adresse\ncle ».
+        private static void SaveToken(string site, string token)
         {
-            byte[] secret = ProtectedData.Protect(Encoding.UTF8.GetBytes(token), null, DataProtectionScope.CurrentUser);
+            byte[] secret = ProtectedData.Protect(Encoding.UTF8.GetBytes(site + "\n" + token), null,
+                DataProtectionScope.CurrentUser);
             File.WriteAllBytes(KeyPath, secret);
             Refused = false;
         }
 
-        private static string LoadToken()
+        // Cle de l'appareil si elle a ete donnee par ce site, sinon null.
+        private static string LoadToken(string site)
         {
             try
             {
                 if (!File.Exists(KeyPath)) return null;
                 byte[] secret = ProtectedData.Unprotect(File.ReadAllBytes(KeyPath), null, DataProtectionScope.CurrentUser);
-                return Encoding.UTF8.GetString(secret);
+                string text = Encoding.UTF8.GetString(secret);
+                int newline = text.IndexOf('\n');
+                string owner = newline < 0 ? DefaultSite : text.Substring(0, newline);
+                string token = newline < 0 ? text : text.Substring(newline + 1);
+                return string.Equals(owner, site, StringComparison.OrdinalIgnoreCase) ? token : null;
             }
             catch (Exception)
             {

@@ -18,6 +18,8 @@ namespace DofuxyaManager
             new Dictionary<string, SiteCharacter>(StringComparer.OrdinalIgnoreCase);
         private readonly DispatcherTimer siteTimer = new DispatcherTimer();
         private bool siteBusy;
+        // Vrai quand la derniere lecture des persos n'a pas joint le site (reseau coupe, site arrete…).
+        private bool siteUnreachable;
         private bool linking;
         private Button linkButton;
         private TextBlock linkText;
@@ -50,11 +52,11 @@ namespace DofuxyaManager
         }
 
         // Relit les persos du compte lie et, si besoin, l'Almanax du jour. Sans effet si l'outil n'est
-        // pas lie ou qu'une lecture est en cours ; les erreurs de reseau sont ignorees (prochain essai
-        // dans 10 minutes).
+        // pas lie ou qu'une lecture est en cours. Si le site ne repond pas, la pastille le signale
+        // (prochain essai dans 10 minutes).
         private void RefreshSite(bool almanax)
         {
-            if (siteBusy || linking || !SiteLink.IsLinked) return;
+            if (siteBusy || linking || !SiteLink.IsLinkedTo(settings.SiteUrl)) return;
             string today = DateTime.Now.ToString("yyyy-MM-dd");
             bool wantAlmanax = almanax && settings.AlmanaxReminder && settings.AlmanaxSeen != today;
             siteBusy = true;
@@ -64,6 +66,7 @@ namespace DofuxyaManager
                 List<SiteCharacter> characters = null;
                 AlmanaxDay day = null;
                 bool revoked = false;
+                bool unreachable = false;
                 try
                 {
                     characters = SiteLink.Characters(site);
@@ -72,6 +75,8 @@ namespace DofuxyaManager
                 catch (SiteLink.SiteError error)
                 {
                     revoked = error.Status == 401;
+                    // Pas de reponse, ou erreur du serveur : le site n'est pas joignable pour l'instant.
+                    unreachable = characters == null && (error.Status == 0 || error.Status >= 500);
                 }
                 catch (Exception)
                 {
@@ -79,6 +84,8 @@ namespace DofuxyaManager
                 Dispatcher.BeginInvoke(new Action(delegate
                 {
                     siteBusy = false;
+                    if (characters != null) siteUnreachable = false;
+                    else if (unreachable || revoked) siteUnreachable = unreachable;
                     if (revoked)
                     {
                         siteCharacters.Clear();
@@ -195,7 +202,7 @@ namespace DofuxyaManager
         private void UpdateSiteUi()
         {
             if (linkButton == null) return;
-            bool linked = SiteLink.IsLinked;
+            bool linked = SiteLink.IsLinkedTo(settings.SiteUrl);
             bool refused = linked && SiteLink.Refused;
             linkButton.IsEnabled = !linking;
             linkButton.Content = linking ? "En attente…" : refused ? "Relier" : linked ? "Délier" : "Lier au site";
@@ -209,10 +216,11 @@ namespace DofuxyaManager
         {
             if (linking) return;
             // Liaison refusee par le site : on relie (la nouvelle cle remplace l'ancienne).
-            if (SiteLink.IsLinked && !SiteLink.Refused)
+            if (SiteLink.IsLinkedTo(settings.SiteUrl) && !SiteLink.Refused)
             {
                 SiteLink.Unlink();
                 siteCharacters.Clear();
+                siteUnreachable = false;
                 lastMessage = "Outil délié du site. Tu peux aussi retirer l'accès depuis ton profil sur le site.";
                 UpdateSiteUi();
                 RebuildRows();

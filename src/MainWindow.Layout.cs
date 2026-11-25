@@ -267,11 +267,12 @@ namespace DofuxyaManager
             previousChip.Text = settings.Previous.ToString();
             nextChip.Text = settings.Next.ToString();
             scopeText.Text = settings.OnlyInDofus ? "Raccourcis actifs dans Dofus" : "Raccourcis actifs partout";
-            bool linked = SiteLink.IsLinked;
+            bool linked = SiteLink.IsLinkedTo(settings.SiteUrl);
             bool refused = linked && SiteLink.Refused;
             if (linkIndicator != null) linkIndicator.Visibility = linked ? Visibility.Visible : Visibility.Collapsed;
-            linkDot.Background = Ui.Paint(refused ? Ui.ColWarning : Ui.ColAccent);
-            linkStateText.Text = refused ? "Liaison refusée" : "Liaison active";
+            bool unreachable = linked && !refused && siteUnreachable;
+            linkDot.Background = Ui.Paint(refused || unreachable ? Ui.ColWarning : Ui.ColAccent);
+            linkStateText.Text = refused ? "Liaison refusée" : unreachable ? "Site injoignable" : "Liaison active";
 
             string text = refusedText;
             if (lastMessage.Length > 0) text += (text.Length > 0 ? "\n" : "") + lastMessage;

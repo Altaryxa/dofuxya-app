@@ -221,7 +221,7 @@ namespace DofuxyaManager
         {
             if (++sendTick < SendEvery) return;
             sendTick = 0;
-            if (!sending && SiteLink.IsLinked) SendToSite();
+            if (!sending && SiteLink.IsLinkedTo(settings.SiteUrl)) SendToSite();
         }
 
         // Noms pas encore envoyes pour ce perso (50 au plus).
